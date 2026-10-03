@@ -1,0 +1,11 @@
+TOPIC: cancel, cancellation, cancel order, stop order
+
+Order Cancellation Policy
+
+An order may be cancelled at any time before it ships, with a full refund.
+
+Once an order has shipped it can no longer be cancelled. The customer must
+wait for delivery and then file a return under the standard return policy.
+
+The shipping status of an order is recorded on the order record itself and
+must be checked before any cancellation is approved.

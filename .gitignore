@@ -1,0 +1,4 @@
+# Each project folder keeps its own .gitignore as well.
+__pycache__/
+*.py[cod]
+.pytest_cache/

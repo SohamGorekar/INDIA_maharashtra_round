@@ -1,0 +1,9 @@
+TOPIC: shipping delay, late delivery, delayed, shipping fee
+
+Shipping Delay Policy
+
+Deliveries running more than 10 days past the promised date qualify for a
+refund of the shipping fee.
+
+NOTE: this policy is informational only and is not currently enforced by the
+decision rules. Do not base a final decision on it.

@@ -1,0 +1,12 @@
+TOPIC: exchange, swap, different size, wrong size, size
+
+Exchange Policy
+
+Exchanges are accepted within 30 days of purchase, provided the requested
+replacement size is currently in stock.
+
+Stock availability MUST be confirmed before an exchange is approved. If the
+requested size is unavailable, the exchange is denied.
+
+Exchanges outside the 30-day window are denied. Final-sale items are not
+eligible for exchange.

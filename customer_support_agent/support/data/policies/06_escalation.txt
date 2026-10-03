@@ -1,0 +1,12 @@
+TOPIC: escalation, escalate, manager, high value, large refund, threshold
+
+Refund Escalation Policy
+
+Any refund with a value above Rs. 5000 must be escalated to a manager for
+approval. The agent must not issue such a refund directly.
+
+This threshold applies to every refund reason, including damaged goods and
+defective items. Escalation is checked only after the claim has been found
+otherwise valid: a claim that is out of policy is denied, not escalated.
+
+Orders at or below Rs. 5000 do not require escalation.

@@ -1,0 +1,18 @@
+# secrets -- never commit the API key
+.env
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# generated data
+*.db
+*.sqlite
+*.sqlite3
+
+# node / react
+node_modules/
+ui/dist/
