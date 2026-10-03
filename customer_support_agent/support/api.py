@@ -312,6 +312,42 @@ def customers():
 def run(payload: RunRequest):
     """Run one request through the agent and return the whole trace."""
     set_dry_run(payload.dry_run)
+    
+    # Try to use Black Box instrumented version if available
+    try:
+        from support.blackbox_integration.instrumented_graph import run_with_blackbox
+        import os
+        
+        if os.getenv("BLACKBOX_ENABLED", "true").lower() == "true":
+            # Run with Black Box tracing
+            state, run_id = run_with_blackbox(
+                initial_state(build_user_message(_Req(payload))),
+                expected_decision=payload.expected_decision,
+                metadata={
+                    "customer_id": payload.customer_id,
+                    "request_type": payload.request_type,
+                    "dry_run": payload.dry_run,
+                }
+            )
+            
+            decision = state.get("decision", "")
+            expected = payload.expected_decision
+            return {
+                "decision": decision,
+                "reply": state.get("reply", ""),
+                "steps": state.get("steps", 0),
+                "tool_log": state.get("tool_log", []),
+                "dry_run": payload.dry_run,
+                "expected_decision": expected or None,
+                "correct": (decision == expected) if expected else None,
+                "blackbox_run_id": run_id,
+            }
+    except ImportError:
+        pass  # Fall through to original implementation
+    except Exception as exc:
+        print(f"Black Box error (falling back to original): {exc}")
+    
+    # Original implementation (fallback)
     try:
         state = get_graph().invoke(initial_state(build_user_message(_Req(payload))))
     except MissingAPIKey as exc:
@@ -336,3 +372,13 @@ def run(payload: RunRequest):
 def delete_cache():
     clear_cache()
     return {"cleared": True}
+
+
+# --- Black Box Integration -------------------------------------------------
+# Import and include Black Box routes if available
+try:
+    from support.blackbox_integration.api_routes import router as blackbox_router
+    app.include_router(blackbox_router)
+except ImportError:
+    # Black Box not available, skip integration
+    pass
