@@ -3,21 +3,9 @@ import { clearToken, getMe, getToken, logout } from './api'
 import Chat from './components/Chat'
 import Login from './components/Login'
 import Orders from './components/Orders'
-import DebugApp from './DebugApp'
 
-/**
- * Two surfaces, one app:
- *
- *   /        what a customer sees -- sign in, your orders, ask about one
- *   /debug   the engineer's view -- tool timeline, decision, correct/incorrect
- *
- * A tiny path check rather than a router: there are two routes and neither
- * takes parameters, so a routing library would be more moving parts than the
- * problem has.
- */
 export default function App() {
-  const isDebug = window.location.pathname.replace(/\/+$/, '') === '/debug'
-  return isDebug ? <DebugApp /> : <CustomerApp />
+  return <CustomerApp />
 }
 
 function CustomerApp() {

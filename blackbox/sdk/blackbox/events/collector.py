@@ -56,12 +56,11 @@ class EventCollector:
                 # Log but don't fail the instrumentation
                 print(f"Warning: Failed to store event: {e}")
         
-        # Trigger callbacks
-        for callback in self._callbacks:
-            try:
-                callback(event)
-            except Exception as e:
-                print(f"Warning: Event callback failed: {e}")
+        event_type = (
+            "event_failed" if str(event.status).lower().endswith("error")
+            else "event_completed"
+        )
+        self.publish_lifecycle(event_type, event.run_id, event=event)
     
     def get_events(self, run_id: Optional[str] = None) -> List[ExecutionEvent]:
         """
@@ -99,6 +98,15 @@ class EventCollector:
             callback: Function to call with each event
         """
         self._callbacks.append(callback)
+
+    def publish_lifecycle(self, event_type: str, run_id: str, **payload: Any):
+        """Publish a non-persistent lifecycle message to registered listeners."""
+        message = {"type": event_type, "run_id": run_id, **payload}
+        for callback in list(self._callbacks):
+            try:
+                callback(message)
+            except Exception as e:
+                print(f"Warning: Event callback failed: {e}")
     
     def set_redactor(self, redactor: Callable):
         """

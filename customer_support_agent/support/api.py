@@ -10,6 +10,7 @@ in support/rules/decision.py.
 import secrets
 import uuid
 from dataclasses import asdict
+import os
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,7 +32,12 @@ app = FastAPI(title=f"{STORE_NAME} support")
 # to call this one.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -50,6 +56,24 @@ CONVERSATIONS: dict[str, dict] = {}  # session_id -> agent state
 RESOLVING = {"APPROVE", "DENY", "ESCALATE"}
 
 PHOTO_ATTACHED = "[The customer has attached a photograph of the damage.]"
+
+
+def _blackbox_enabled() -> bool:
+    return os.getenv("BLACKBOX_ENABLED", "true").lower() == "true"
+
+
+def _run_agent_with_blackbox(state, metadata: dict, expected_decision: str = ""):
+    if not _blackbox_enabled():
+        final_state = get_graph().invoke(state)
+        return final_state, None
+
+    from support.blackbox_integration.instrumented_graph import run_with_blackbox
+
+    return run_with_blackbox(
+        state,
+        expected_decision=expected_decision or None,
+        metadata=metadata,
+    )
 
 
 def current_customer(authorization: str = Header(default="")) -> dict:
@@ -229,8 +253,18 @@ def chat(payload: ChatMessage, customer: dict = Depends(current_customer)):
             raise HTTPException(403, "That conversation belongs to someone else.")
         state = continue_state(previous, text)
 
+    metadata = {
+        "source": "customer_chat",
+        "customer_id": customer["customer_id"],
+        "order_id": payload.order_id,
+        "conversation_session_id": session_id,
+        "request_type": "customer_chat",
+        "photo_attached": payload.photo_attached,
+        "dry_run": True,
+    }
+
     try:
-        state = get_graph().invoke(state)
+        state, blackbox_run_id = _run_agent_with_blackbox(state, metadata)
     except MissingAPIKey as exc:
         raise HTTPException(503, str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
@@ -249,6 +283,7 @@ def chat(payload: ChatMessage, customer: dict = Depends(current_customer)):
 
     return {
         "session_id": session_id,
+        "blackbox_run_id": blackbox_run_id,
         "reply": reply,
         # The customer UI ignores these; /debug uses them.
         "decision": decision,
@@ -313,43 +348,19 @@ def run(payload: RunRequest):
     """Run one request through the agent and return the whole trace."""
     set_dry_run(payload.dry_run)
     
-    # Try to use Black Box instrumented version if available
     try:
-        from support.blackbox_integration.instrumented_graph import run_with_blackbox
-        import os
-        
-        if os.getenv("BLACKBOX_ENABLED", "true").lower() == "true":
-            # Run with Black Box tracing
-            state, run_id = run_with_blackbox(
-                initial_state(build_user_message(_Req(payload))),
-                expected_decision=payload.expected_decision,
-                metadata={
-                    "customer_id": payload.customer_id,
-                    "request_type": payload.request_type,
-                    "dry_run": payload.dry_run,
-                }
-            )
-            
-            decision = state.get("decision", "")
-            expected = payload.expected_decision
-            return {
-                "decision": decision,
-                "reply": state.get("reply", ""),
-                "steps": state.get("steps", 0),
-                "tool_log": state.get("tool_log", []),
+        state, run_id = _run_agent_with_blackbox(
+            initial_state(build_user_message(_Req(payload))),
+            metadata={
+                "source": "debug_run",
+                "customer_id": payload.customer_id,
+                "order_id": payload.order_id,
+                "request_type": payload.request_type,
+                "photo_attached": payload.photo_provided,
                 "dry_run": payload.dry_run,
-                "expected_decision": expected or None,
-                "correct": (decision == expected) if expected else None,
-                "blackbox_run_id": run_id,
-            }
-    except ImportError:
-        pass  # Fall through to original implementation
-    except Exception as exc:
-        print(f"Black Box error (falling back to original): {exc}")
-    
-    # Original implementation (fallback)
-    try:
-        state = get_graph().invoke(initial_state(build_user_message(_Req(payload))))
+            },
+            expected_decision=payload.expected_decision,
+        )
     except MissingAPIKey as exc:
         raise HTTPException(503, str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
@@ -365,6 +376,7 @@ def run(payload: RunRequest):
         "dry_run": payload.dry_run,
         "expected_decision": expected or None,
         "correct": (decision == expected) if expected else None,
+        "blackbox_run_id": run_id,
     }
 
 
@@ -379,6 +391,7 @@ def delete_cache():
 try:
     from support.blackbox_integration.api_routes import router as blackbox_router
     app.include_router(blackbox_router)
-except ImportError:
-    # Black Box not available, skip integration
-    pass
+except ImportError as exc:
+    raise RuntimeError(
+        "Black Box dependencies are missing. Install customer_support_agent/requirements.txt."
+    ) from exc

@@ -171,6 +171,76 @@ When disabled, the agent runs exactly as before.
 
 ## Usage
 
+### Run the live Black Box API on Windows
+
+From PowerShell:
+
+```powershell
+cd D:\Soham_Coding\Hackathons\INDIA_maharashtra_round\customer_support_agent
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+$env:BLACKBOX_ENABLED = "true"
+.\.venv\Scripts\python.exe -m uvicorn support.api:app --host 127.0.0.1 --port 8000
+```
+
+In a second PowerShell window, verify the integration and inspect runs:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/blackbox/health | ConvertTo-Json
+Invoke-RestMethod "http://127.0.0.1:8000/api/blackbox/runs?limit=10" | ConvertTo-Json -Depth 6
+```
+
+Run the customer UI in a third PowerShell window:
+
+```powershell
+cd D:\Soham_Coding\Hackathons\INDIA_maharashtra_round\customer_support_agent\ui
+npm install
+npm run dev
+```
+
+Run the separate Black Box UI in a fourth PowerShell window:
+
+```powershell
+cd D:\Soham_Coding\Hackathons\INDIA_maharashtra_round\blackbox\ui
+npm install
+npm run dev
+```
+
+Open these URLs:
+
+- Customer workflow: `http://localhost:5173/`
+- Black Box monitor: `http://localhost:5174/`
+
+Keep the separate Black Box monitor open before submitting a customer complaint. It
+subscribes to the latest-run stream, automatically selects each newly started
+customer run, and then follows that run's event and checkpoint stream live.
+
+Run the existing `/api/run` request from the engineering page or with the
+sample payload returned by `GET /api/samples`. The response contains
+`blackbox_run_id`. Use that ID with:
+
+```powershell
+$id = "run_REPLACE_ME"
+Invoke-RestMethod "http://127.0.0.1:8000/api/blackbox/runs/$id/trace" |
+  ConvertTo-Json -Depth 8
+Invoke-RestMethod "http://127.0.0.1:8000/api/blackbox/runs/$id/diagnosis" |
+  ConvertTo-Json -Depth 8
+Invoke-RestMethod "http://127.0.0.1:8000/api/blackbox/runs/$id/checkpoints" |
+  ConvertTo-Json -Depth 8
+```
+
+Replay and counterfactual requests are available after selecting a checkpoint
+or event from the trace:
+
+```powershell
+$checkpoint = (Invoke-RestMethod `
+  "http://127.0.0.1:8000/api/blackbox/runs/$id/checkpoints")[0]
+$body = @{ checkpoint_id = $checkpoint.checkpoint_id; safe_mode = $true } |
+  ConvertTo-Json
+Invoke-RestMethod "http://127.0.0.1:8000/api/blackbox/runs/$id/replay" `
+  -Method Post -ContentType "application/json" -Body $body |
+  ConvertTo-Json -Depth 8
+```
+
 ### 1. Run with Tracing
 
 ```python

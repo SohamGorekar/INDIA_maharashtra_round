@@ -8,7 +8,7 @@ export default defineConfig({
     // relative URLs and we avoid CORS entirely in development.
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: process.env.VITE_API_TARGET || 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
     },

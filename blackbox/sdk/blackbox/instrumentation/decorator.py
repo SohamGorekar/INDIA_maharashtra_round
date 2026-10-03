@@ -102,7 +102,7 @@ def _execute_traced(
         sequence_number=sequence_number,
         component_id=component_id,
         component_name=func_name,
-        component_type=ComponentType(component_type) if component_type in ComponentType.__members__.values() else ComponentType.CUSTOM,
+        component_type=_component_type(component_type),
         input=_serialize_call_args(func, args, kwargs),
         output=None,
         state_before=None,
@@ -122,6 +122,8 @@ def _execute_traced(
     # Update parent context
     from blackbox.instrumentation.context import _current_parent_event_id
     token = _current_parent_event_id.set(event_id)
+    collector = get_global_collector()
+    collector.publish_lifecycle("event_started", run_id, event=event)
     
     start_time = time.perf_counter()
     
@@ -144,7 +146,6 @@ def _execute_traced(
             event.duration_ms = (end_time - start_time) * 1000
             
             # Collect event
-            collector = get_global_collector()
             collector.collect(event)
             
             # Restore parent context
@@ -161,7 +162,6 @@ def _execute_traced(
         event.duration_ms = (end_time - start_time) * 1000
         
         # Collect event
-        collector = get_global_collector()
         collector.collect(event)
         
         # Restore parent context
@@ -169,6 +169,14 @@ def _execute_traced(
         
         # Re-raise exception
         raise
+
+
+def _component_type(value: str) -> ComponentType:
+    """Convert a decorator type to the schema enum without losing valid types."""
+    try:
+        return ComponentType(value)
+    except ValueError:
+        return ComponentType.CUSTOM
 
 
 async def _execute_async_traced(

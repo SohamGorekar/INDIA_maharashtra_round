@@ -24,6 +24,7 @@ from blackbox.events.collector import EventCollector, set_global_collector, get_
 from blackbox.checkpoint.manager import CheckpointManager
 from blackbox.instrumentation.context import get_current_run_id, get_current_context
 from blackbox.events.schema import RunOutcome, RunStatus
+from support.blackbox_integration.streaming import broker
 
 from support.agent.graph import (
     _call_model as original_call_model,
@@ -47,21 +48,60 @@ _storage = None
 _collector = None
 _checkpoint_manager = None
 _adapter = None
+_stream_callback_registered = False
+_initialization_error = None
+
+
+def _publish_collector_message(message):
+    event = message.get("event")
+    payload = {}
+    if event is not None:
+        payload["event"] = event
+    broker.publish(message["type"], message["run_id"], **payload)
+
+
+def _redact_sensitive(data):
+    if isinstance(data, dict):
+        redacted = {}
+        for key, value in data.items():
+            lowered = str(key).lower()
+            if any(secret in lowered for secret in ("password", "token", "api_key", "authorization")):
+                redacted[key] = "[REDACTED]"
+            else:
+                redacted[key] = _redact_sensitive(value)
+        return redacted
+    if isinstance(data, list):
+        return [_redact_sensitive(item) for item in data]
+    return data
 
 
 def initialize_blackbox():
     """Initialize Black Box SDK components."""
     global _storage, _collector, _checkpoint_manager, _adapter
+    global _stream_callback_registered, _initialization_error
     
     if not BLACKBOX_ENABLED:
         return
     
     if _storage is None:
-        _storage = SQLiteStorage(BLACKBOX_DB_PATH)
-        _collector = EventCollector(storage=_storage)
-        set_global_collector(_collector)
-        _checkpoint_manager = CheckpointManager(storage=_storage)
-        _adapter = LangGraphAdapter()
+        try:
+            _storage = SQLiteStorage(BLACKBOX_DB_PATH)
+            _collector = EventCollector(storage=_storage)
+            _collector.set_redactor(_redact_sensitive)
+            if not _stream_callback_registered:
+                _collector.register_callback(_publish_collector_message)
+                _stream_callback_registered = True
+            set_global_collector(_collector)
+            _checkpoint_manager = CheckpointManager(storage=_storage)
+            _adapter = LangGraphAdapter()
+            _initialization_error = None
+        except Exception as exc:
+            _initialization_error = exc
+            raise RuntimeError(f"Black Box initialization failed: {exc}") from exc
+
+
+def get_initialization_error():
+    return _initialization_error
 
 
 def get_storage():
@@ -104,6 +144,11 @@ def _call_model_instrumented(state: AgentState) -> dict:
                     event_id=f"before_llm_{state.get('steps', 0)}",
                     sequence_number=state.get('steps', 0),
                     state=serialized_state
+                )
+                broker.publish(
+                    "checkpoint_created",
+                    run_id,
+                    checkpoint=checkpoint,
                 )
             except Exception as e:
                 print(f"Warning: Failed to create checkpoint: {e}")
@@ -185,6 +230,11 @@ def _call_tools_instrumented(state: AgentState) -> dict:
                     sequence_number=state.get('steps', 0) + 1,
                     state=serialized_state
                 )
+                broker.publish(
+                    "checkpoint_created",
+                    run_id,
+                    checkpoint=checkpoint,
+                )
             except Exception as e:
                 print(f"Warning: Failed to create checkpoint: {e}")
 
@@ -245,7 +295,12 @@ def get_instrumented_graph():
     return _INSTRUMENTED_GRAPH
 
 
-def run_with_blackbox(state: AgentState, expected_decision: str = None, metadata: Dict[str, Any] = None) -> tuple:
+def run_with_blackbox(
+    state: AgentState,
+    expected_decision: str = None,
+    metadata: Dict[str, Any] = None,
+    run_id: str = None,
+) -> tuple:
     """
     Run the agent with Black Box tracing.
     
@@ -269,14 +324,16 @@ def run_with_blackbox(state: AgentState, expected_decision: str = None, metadata
     storage = get_storage()
     
     # Create Black Box run context
-    run_id = f"run_{uuid.uuid4().hex[:12]}"
+    run_id = run_id or f"run_{uuid.uuid4().hex[:12]}"
     
     # Extract task input from state
     task_input = {}
     if state.get("messages"):
         first_msg = state["messages"][0]
+        message = str(first_msg.content) if hasattr(first_msg, "content") else str(first_msg)
         task_input = {
-            "message": str(first_msg.content) if hasattr(first_msg, "content") else str(first_msg),
+            "message_preview": message[:240],
+            "message_length": len(message),
             "type": "customer_support_request"
         }
     
@@ -293,14 +350,10 @@ def run_with_blackbox(state: AgentState, expected_decision: str = None, metadata
     
     # Store initial run
     storage.store_run(run)
+    broker.publish("run_started", run_id, run=run)
     
     # Execute with context
-    with BlackBoxContext() as ctx:
-        ctx.run_id = run_id
-        
-        # Set run ID in context vars
-        from blackbox.instrumentation.context import set_current_run_id
-        set_current_run_id(run_id)
+    with BlackBoxContext(run_id=run_id):
         
         try:
             # Run the instrumented graph
@@ -312,21 +365,45 @@ def run_with_blackbox(state: AgentState, expected_decision: str = None, metadata
             outcome = adapter.map_decision_to_outcome(decision, expected_decision)
             
             # Update run
+            finished_at = datetime.utcnow()
             storage.update_run(run_id, {
                 "status": RunStatus.COMPLETED,
                 "outcome": outcome,
-                "finished_at": datetime.utcnow(),
-                "duration_ms": (datetime.utcnow() - run.started_at).total_seconds() * 1000,
+                "finished_at": finished_at,
+                "duration_ms": (finished_at - run.started_at).total_seconds() * 1000,
+                "metadata": {
+                    **(metadata or {}),
+                    "final_decision": decision,
+                },
             })
+            completed_run = storage.get_run(run_id)
+            broker.publish(
+                "run_completed",
+                run_id,
+                run=completed_run,
+                final_decision=decision,
+            )
             
             return final_state, run_id
             
         except Exception as exc:
             # Update run with error
+            finished_at = datetime.utcnow()
             storage.update_run(run_id, {
                 "status": RunStatus.FAILED,
                 "outcome": RunOutcome.FAILURE,
-                "finished_at": datetime.utcnow(),
-                "duration_ms": (datetime.utcnow() - run.started_at).total_seconds() * 1000,
+                "finished_at": finished_at,
+                "duration_ms": (finished_at - run.started_at).total_seconds() * 1000,
+                "metadata": {
+                    **(metadata or {}),
+                    "error": f"{type(exc).__name__}: {exc}",
+                },
             })
+            failed_run = storage.get_run(run_id)
+            broker.publish(
+                "run_failed",
+                run_id,
+                run=failed_run,
+                error=f"{type(exc).__name__}: {exc}",
+            )
             raise

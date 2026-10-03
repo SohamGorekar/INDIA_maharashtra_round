@@ -6,6 +6,8 @@ from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 
 from blackbox.storage.interface import StorageBackend
+from blackbox.diagnosis.model import DiagnosisModel
+from blackbox.diagnosis.explanation import EvidenceGenerator
 
 
 class DiagnosisResponse(BaseModel):
@@ -79,11 +81,20 @@ def create_router(storage: StorageBackend) -> APIRouter:
             if not run:
                 raise HTTPException(status_code=404, detail="Run not found")
             
-            # TODO: Implement actual diagnosis triggering
+            events = storage.get_events_for_run(run_id)
+            if not events:
+                raise HTTPException(status_code=400, detail="Run has no events")
+
+            diagnosis = DiagnosisModel().diagnose(run, events, storage=storage)
+            evidence = EvidenceGenerator(storage=storage).generate_evidence(
+                diagnosis, run, events
+            )
             return {
-                "message": "Diagnosis triggered",
+                "message": "Diagnosis completed",
                 "run_id": run_id,
-                "status": "pending"
+                "status": "completed",
+                "diagnosis": diagnosis.dict(),
+                "evidence": [item.dict() for item in evidence],
             }
         except HTTPException:
             raise

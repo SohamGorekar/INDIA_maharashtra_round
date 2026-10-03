@@ -17,7 +17,13 @@ import uuid
 from datetime import datetime
 import copy
 
-from blackbox.events.schema import RunOutcome, RunStatus, EventStatus
+from blackbox.events.schema import (
+    CounterfactualRun,
+    ReplayRun,
+    RunOutcome,
+    RunStatus,
+    EventStatus,
+)
 from blackbox.storage.interface import StorageBackend
 from support.blackbox_integration.adapter import LangGraphAdapter
 from support.blackbox_integration.instrumented_graph import (
@@ -27,6 +33,13 @@ from support.blackbox_integration.instrumented_graph import (
     run_with_blackbox,
     initialize_blackbox,
 )
+
+
+def _decision_to_outcome(decision: str) -> RunOutcome:
+    """Map a support decision to the persisted Black Box outcome enum."""
+    return RunOutcome.SUCCESS if decision in {
+        "APPROVE", "DENY", "REQUEST_PHOTO", "ESCALATE"
+    } else RunOutcome.FAILURE
 
 
 class ReplayEngine:
@@ -88,14 +101,12 @@ class ReplayEngine:
         agent_state["steps"] = checkpoint_seq
         
         # Run from restored state with safe mode
-        if safe_mode:
-            # In safe mode, we prevent writes
-            from support.agent.tools import set_dry_run
-            set_dry_run(True)
-        
-        # Execute replay
         replay_run_id = f"replay_{uuid.uuid4().hex[:12]}"
-        
+        from support.agent import tools
+        previous_dry_run = tools.DRY_RUN
+        if safe_mode:
+            tools.set_dry_run(True)
+
         try:
             # Run the agent from the restored state
             final_state, _ = run_with_blackbox(
@@ -105,12 +116,25 @@ class ReplayEngine:
                     "original_run_id": original_run_id,
                     "checkpoint_id": checkpoint_id,
                     "replay_run_id": replay_run_id,
-                }
+                },
+                run_id=replay_run_id,
             )
             
             # Get replay events
             replay_events = self.storage.get_events_for_run(replay_run_id)
             
+            outcome = _decision_to_outcome(final_state.get("decision", ""))
+            self.storage.store_replay_run(
+                ReplayRun(
+                    replay_run_id=replay_run_id,
+                    original_run_id=original_run_id,
+                    checkpoint_id=checkpoint_id,
+                    steps_reused=len(events_to_reuse),
+                    steps_reexecuted=len(replay_events),
+                    outcome=outcome,
+                    created_at=datetime.utcnow(),
+                )
+            )
             return {
                 "replay_run_id": replay_run_id,
                 "original_run_id": original_run_id,
@@ -133,6 +157,8 @@ class ReplayEngine:
                 "outcome": "ERROR",
                 "safe_mode": safe_mode,
             }
+        finally:
+            tools.set_dry_run(previous_dry_run)
 
 
 class CounterfactualEngine:
@@ -177,14 +203,14 @@ class CounterfactualEngine:
         if event_to_modify.run_id != original_run_id:
             raise ValueError("Event does not belong to this run")
         
-        # Find checkpoint before this event
+        # Find checkpoint strictly before this event.
         checkpoints = self.storage.get_checkpoints_for_run(original_run_id)
         checkpoints_sorted = sorted(checkpoints, key=lambda c: c.sequence_number)
         
         # Find the checkpoint immediately before or at the event
         checkpoint_before = None
         for cp in checkpoints_sorted:
-            if cp.sequence_number <= event_to_modify.sequence_number:
+            if cp.sequence_number < event_to_modify.sequence_number:
                 checkpoint_before = cp
             else:
                 break
@@ -207,13 +233,12 @@ class CounterfactualEngine:
         agent_state["reply"] = ""
         agent_state["steps"] = checkpoint_before.sequence_number
         
-        # Set safe mode
-        if safe_mode:
-            from support.agent.tools import set_dry_run
-            set_dry_run(True)
-        
         # Create counterfactual run ID
         counterfactual_run_id = f"cf_{uuid.uuid4().hex[:12]}"
+        from support.agent import tools
+        previous_dry_run = tools.DRY_RUN
+        if safe_mode:
+            tools.set_dry_run(True)
         
         try:
             # Run with the modified state
@@ -225,7 +250,8 @@ class CounterfactualEngine:
                     "modified_event_id": event_id_to_modify,
                     "modification": modification,
                     "counterfactual_run_id": counterfactual_run_id,
-                }
+                },
+                run_id=counterfactual_run_id,
             )
             
             # Evaluate outcome change
@@ -252,6 +278,17 @@ class CounterfactualEngine:
                     else f"Outcome remained {original_decision} after modification."
                 )
             }
+            self.storage.store_counterfactual_run(
+                CounterfactualRun(
+                    counterfactual_run_id=counterfactual_run_id,
+                    original_run_id=original_run_id,
+                    modified_event_id=event_id_to_modify,
+                    patch=modification,
+                    outcome=_decision_to_outcome(counterfactual_decision),
+                    validation=validation,
+                    created_at=datetime.utcnow(),
+                )
+            )
             
             return {
                 "counterfactual_run_id": counterfactual_run_id,
@@ -278,6 +315,8 @@ class CounterfactualEngine:
                 },
                 "safe_mode": safe_mode,
             }
+        finally:
+            tools.set_dry_run(previous_dry_run)
 
 
 def compare_traces(

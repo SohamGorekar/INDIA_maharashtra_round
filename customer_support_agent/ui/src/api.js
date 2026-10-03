@@ -70,13 +70,3 @@ export const sendChat = (payload) =>
 
 export const endChat = (sessionId) =>
   request(`/api/chat/${sessionId}`, { method: 'DELETE' })
-
-// --- engineering view ------------------------------------------------------
-
-export const getHealth = () => request('/api/health')
-export const getSamples = (n = 40) => request(`/api/samples?n=${n}`)
-export const getCustomers = () => request('/api/customers')
-export const clearCache = () => request('/api/cache', { method: 'DELETE' })
-
-export const runAgent = (payload) =>
-  request('/api/run', { method: 'POST', body: JSON.stringify(payload) })
