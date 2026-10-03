@@ -52,9 +52,13 @@ htmlcov/
 *.h5
 *.pt
 
-# Logs
+# Node / UI
+node_modules/
+dist/
+.vite/
 *.log
 
 # OS
 .DS_Store
 Thumbs.db
+
