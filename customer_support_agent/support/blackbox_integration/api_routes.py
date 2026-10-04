@@ -145,13 +145,28 @@ def _json_safe(value: Any) -> Any:
     return json.loads(json.dumps(value, default=str))
 
 
+def _is_derived_run(run: Any) -> bool:
+    """Identify replay/counterfactual runs that are background-only."""
+    run_id = str(getattr(run, "run_id", "") or "")
+    metadata = getattr(run, "metadata", {}) or {}
+    return (
+        run_id.startswith("replay_")
+        or run_id.startswith("counterfactual_")
+        or bool(metadata.get("is_replay"))
+        or bool(metadata.get("is_counterfactual"))
+    )
+
+
 @router.get("/runs")
 def list_runs(limit: int = 100, offset: int = 0):
-    """List all Black Box runs."""
+    """List customer runs; derived replay runs stay available by direct ID."""
     try:
         storage = _require_storage()
-        
-        runs = storage.list_runs(limit=limit, offset=offset)
+
+        # Filter before pagination so background runs do not hide customer runs.
+        all_runs = storage.list_runs(limit=100000, offset=0)
+        visible_runs = [run for run in all_runs if not _is_derived_run(run)]
+        runs = visible_runs[offset:offset + limit]
         return [run.dict() for run in runs]
     except HTTPException:
         raise

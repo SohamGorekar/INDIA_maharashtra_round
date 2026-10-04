@@ -4,16 +4,10 @@ import { endChat, sendChat } from '../api'
 const rupees = (n) =>
   `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
 
-function Message({ from, text, photo }) {
+function Message({ from, text }) {
   return (
     <div className={`msg ${from}`}>
       <div className="msg-inner">
-        {photo && (
-          <div className="attachment">
-            <span className="attachment-icon">▣</span>
-            <span>damage-photo.jpg</span>
-          </div>
-        )}
         {text && <p>{text}</p>}
       </div>
     </div>
@@ -40,7 +34,6 @@ export default function Chat({ customer, order, onBack, onSignOut }) {
 
   const [messages, setMessages] = useState([{ from: 'agent', text: greeting }])
   const [draft, setDraft] = useState('')
-  const [photoReady, setPhotoReady] = useState(false)
   const [sessionId, setSessionId] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
@@ -59,12 +52,10 @@ export default function Chat({ customer, order, onBack, onSignOut }) {
 
   async function send() {
     const text = draft.trim()
-    if ((!text && !photoReady) || sending) return
+    if (!text || sending) return
 
-    setMessages((m) => [...m, { from: 'customer', text, photo: photoReady }])
+    setMessages((m) => [...m, { from: 'customer', text }])
     setDraft('')
-    const hadPhoto = photoReady
-    setPhotoReady(false)
     setSending(true)
     setError('')
 
@@ -73,7 +64,6 @@ export default function Chat({ customer, order, onBack, onSignOut }) {
         session_id: sessionId,
         order_id: order.order_id,
         message: text,
-        photo_attached: hadPhoto,
       })
       setSessionId(response.session_id)
       setMessages((m) => [...m, { from: 'agent', text: response.reply }])
@@ -135,30 +125,7 @@ export default function Chat({ customer, order, onBack, onSignOut }) {
 
       <div className="composer-wrap">
         <div className="composer">
-          {photoReady && (
-            <div className="pending-photo">
-              <span className="attachment-icon">▣</span>
-              damage-photo.jpg
-              <button
-                className="remove"
-                onClick={() => setPhotoReady(false)}
-                title="Remove"
-              >
-                ×
-              </button>
-            </div>
-          )}
-
           <div className="composer-row">
-            <button
-              className={`attach${photoReady ? ' on' : ''}`}
-              onClick={() => setPhotoReady(true)}
-              disabled={photoReady || sending}
-              title="Attach a photo"
-            >
-              ✚
-            </button>
-
             <textarea
               ref={inputRef}
               rows={1}
@@ -172,7 +139,7 @@ export default function Chat({ customer, order, onBack, onSignOut }) {
             <button
               className="send"
               onClick={send}
-              disabled={(!draft.trim() && !photoReady) || sending}
+              disabled={!draft.trim() || sending}
               title="Send"
             >
               ➤

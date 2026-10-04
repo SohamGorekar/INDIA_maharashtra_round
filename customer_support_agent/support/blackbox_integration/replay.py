@@ -355,6 +355,21 @@ def compare_traces(
     
     if not run1 or not run2:
         raise ValueError("One or both runs not found")
+
+    if run_id_1 == run_id_2:
+        event_count = len(storage.get_events_for_run(run_id_1))
+        return {
+            "first_divergence_event_id": None,
+            "changed_events": [],
+            "added_events": [],
+            "removed_events": [],
+            "outcome": {
+                "original": run1.outcome,
+                "alternative": run2.outcome,
+            },
+            "run_1": {"run_id": run_id_1, "event_count": event_count},
+            "run_2": {"run_id": run_id_2, "event_count": event_count},
+        }
     
     # Get events
     events1 = storage.get_events_for_run(run_id_1)
@@ -363,34 +378,68 @@ def compare_traces(
     events1_sorted = sorted(events1, key=lambda e: e.sequence_number)
     events2_sorted = sorted(events2, key=lambda e: e.sequence_number)
     
-    # Find first divergence
+    # Compare by recorded execution order. Sequence numbers can repeat when
+    # nested/parallel instrumented calls share a context, so list position is
+    # the reliable alignment key for the rendered step-by-step diff.
     first_divergence = None
     changed_events = []
-    
-    for i, (e1, e2) in enumerate(zip(events1_sorted, events2_sorted)):
-        if (e1.component_name != e2.component_name or
-            e1.output != e2.output or
-            e1.status != e2.status):
+    added_events = []
+    removed_events = []
+    common_count = min(len(events1_sorted), len(events2_sorted))
+
+    for position in range(common_count):
+        e1 = events1_sorted[position]
+        e2 = events2_sorted[position]
+        component_changed = e1.component_name != e2.component_name
+        output_changed = e1.output != e2.output
+        state_changed = (
+            e1.state_before != e2.state_before
+            or e1.state_after != e2.state_after
+        )
+        status_changed = e1.status != e2.status
+
+        if component_changed or output_changed or state_changed or status_changed:
             if first_divergence is None:
                 first_divergence = e1.event_id
-            
+
             changed_events.append({
+                "execution_position": position + 1,
                 "sequence_number": e1.sequence_number,
                 "event_id_1": e1.event_id,
                 "event_id_2": e2.event_id,
                 "component_name": e1.component_name,
-                "output_changed": e1.output != e2.output,
-                "status_changed": e1.status != e2.status,
+                "component_changed": component_changed,
+                "output_changed": output_changed,
+                "state_changed": state_changed,
+                "status_changed": status_changed,
             })
-    
-    # Find added/removed events
-    added_events = []
-    removed_events = []
-    
-    if len(events2_sorted) > len(events1_sorted):
-        added_events = [e.event_id for e in events2_sorted[len(events1_sorted):]]
-    elif len(events1_sorted) > len(events2_sorted):
-        removed_events = [e.event_id for e in events1_sorted[len(events2_sorted):]]
+
+    if len(events2_sorted) > common_count:
+        added_events = [
+            {
+                "execution_position": position + 1,
+                "event_id": event.event_id,
+                "component_name": event.component_name,
+            }
+            for position, event in enumerate(
+                events2_sorted[common_count:], start=common_count
+            )
+        ]
+        if first_divergence is None:
+            first_divergence = added_events[0]["event_id"]
+    elif len(events1_sorted) > common_count:
+        removed_events = [
+            {
+                "execution_position": position + 1,
+                "event_id": event.event_id,
+                "component_name": event.component_name,
+            }
+            for position, event in enumerate(
+                events1_sorted[common_count:], start=common_count
+            )
+        ]
+        if first_divergence is None:
+            first_divergence = removed_events[0]["event_id"]
     
     return {
         "first_divergence_event_id": first_divergence,

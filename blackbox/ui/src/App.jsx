@@ -15,6 +15,10 @@ const getRunLabel = (run) => {
   return `${name} : ${order}`
 }
 
+const getRunOptionLabel = (run) => (
+  `${getRunLabel(run)} · ${run?.run_id || 'unknown run'} (${run?.status || 'unknown'})`
+)
+
 const pretty = (value) => value == null ? '-' : typeof value === 'string' ? value : JSON.stringify(value, null, 2)
 
 const mergeRunEvents = (current, nextTrace, runId) => {
@@ -75,7 +79,17 @@ export default function App() {
       onError: (e) => { setStatus('Reconnecting'); setError(e.message) },
       onEvent: (message) => {
         if (message.type === 'run_started' && message.run_id) {
-          setRunId(message.run_id)
+          // Derived runs must not replace the user's selected source run.
+          const metadata = message.run?.metadata || {}
+          const isDerivedRun = (
+            message.run_id.startsWith('replay_')
+            || message.run_id.startsWith('counterfactual_')
+            || metadata.is_replay
+            || metadata.is_counterfactual
+          )
+          if (!isDerivedRun) {
+            setRunId(message.run_id)
+          }
           refresh(false).catch(() => {})
         }
       },
@@ -188,7 +202,7 @@ export default function App() {
                 <option value="">Select an order run</option>
                 {runs.map((run) => (
                   <option key={run.run_id} value={run.run_id}>
-                    {getRunLabel(run)} ({run.status})
+                    {getRunOptionLabel(run)}
                   </option>
                 ))}
               </select>
@@ -217,7 +231,7 @@ export default function App() {
                 <option value="">Select an order run</option>
                 {runs.map((run) => (
                   <option key={run.run_id} value={run.run_id}>
-                    {getRunLabel(run)} ({run.status})
+                    {getRunOptionLabel(run)}
                   </option>
                 ))}
               </select>
@@ -241,7 +255,23 @@ export default function App() {
                   {checkpoints.map((c) => <option key={c.checkpoint_id} value={c.checkpoint_id}>Step {c.sequence_number}: {c.checkpoint_id}</option>)}
                 </select>
                 <label className="check"><input type="checkbox" checked={safeMode} onChange={(e) => setSafeMode(e.target.checked)} /> Safe mode (recommended)</label>
-                <button className="primary" disabled={!runId} onClick={() => doAction(() => api.replay(runId, document.getElementById('checkpoint').value, safeMode))}>Start replay</button>
+                <button
+                  className="primary"
+                  disabled={!runId || !checkpoints.length}
+                  onClick={() => {
+                    const sourceRunId = runId
+                    const checkpointId = document.getElementById('checkpoint').value
+                    doAction(async () => {
+                      const replayResult = await api.replay(sourceRunId, checkpointId, safeMode)
+                      if (replayResult.error) {
+                        throw new Error(replayResult.error)
+                      }
+                      return replayResult
+                    })
+                  }}
+                >
+                  Start replay
+                </button>
               </>
             } 
             result={result}
@@ -259,7 +289,7 @@ export default function App() {
                 <option value="">Select primary order run</option>
                 {runs.map((run) => (
                   <option key={run.run_id} value={run.run_id}>
-                    {getRunLabel(run)} ({run.status})
+                    {getRunOptionLabel(run)}
                   </option>
                 ))}
               </select>
@@ -269,7 +299,7 @@ export default function App() {
               <select value={otherRun} onChange={(e) => setOtherRun(e.target.value)}>
                 <option value="">Choose another run</option>
                 {runs.filter((run) => run.run_id !== runId).map((run) => (
-                  <option key={run.run_id} value={run.run_id}>{getRunLabel(run)}</option>
+                  <option key={run.run_id} value={run.run_id}>{getRunOptionLabel(run)}</option>
                 ))}
               </select>
             </div>
@@ -739,7 +769,7 @@ function ActionPage({ title, text, controls, result, resultView, runs, runId, se
             <option value="">Select an order run</option>
             {runs.map((run) => (
               <option key={run.run_id} value={run.run_id}>
-                {getRunLabel(run)} ({run.status})
+                {getRunOptionLabel(run)}
               </option>
             ))}
           </select>
@@ -900,14 +930,18 @@ function CompareResults({ result, runs, runId, otherRun, getRunLabel }) {
               <tbody>
                 {changed.map((item, idx) => (
                   <tr key={idx} style={{ borderBottom: '1px solid #1e2838', background: idx % 2 === 0 ? '#161e2e' : 'transparent' }}>
-                    <td style={{ padding: '12px 10px', fontWeight: 'bold', color: '#5890ff' }}>Step {item.sequence_number}</td>
+                    <td style={{ padding: '12px 10px', fontWeight: 'bold', color: '#5890ff' }}>
+                      Step {item.execution_position || item.sequence_number}
+                    </td>
                     <td style={{ padding: '12px 10px' }}>
                       <b style={{ color: '#ffffff', display: 'block' }}>{item.component_name}</b>
                     </td>
                     <td style={{ padding: '12px 10px', fontFamily: 'monospace', color: '#94a3b8' }}>{item.event_id_1}</td>
                     <td style={{ padding: '12px 10px', fontFamily: 'monospace', color: '#94a3b8' }}>{item.event_id_2}</td>
                     <td style={{ padding: '12px 10px' }}>
-                      {item.output_changed && <span style={{ background: '#f59e0b22', color: '#fbbf24', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>Output Changed</span>}
+                      {item.component_changed && <span style={{ background: '#38bdf822', color: '#7dd3fc', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>Component Changed</span>}
+                      {item.output_changed && <span style={{ background: '#f59e0b22', color: '#fbbf24', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600', marginLeft: '6px' }}>Output Changed</span>}
+                      {item.state_changed && <span style={{ background: '#a78bfa22', color: '#c4b5fd', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600', marginLeft: '6px' }}>State Changed</span>}
                       {item.status_changed && <span style={{ background: '#ef444422', color: '#f87171', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600', marginLeft: '6px' }}>Status Changed</span>}
                     </td>
                   </tr>
@@ -922,13 +956,13 @@ function CompareResults({ result, runs, runId, otherRun, getRunLabel }) {
             {added.length > 0 && (
               <div>
                 <b style={{ color: '#54d28b' }}>+ Added Steps in Run 2 ({added.length}):</b>
-                <div style={{ fontSize: '12px', color: '#8d9bb0', marginTop: '4px' }}>{added.join(', ')}</div>
+                <div style={{ fontSize: '12px', color: '#8d9bb0', marginTop: '4px' }}>{added.map((item) => item.event_id).join(', ')}</div>
               </div>
             )}
             {removed.length > 0 && (
               <div>
                 <b style={{ color: '#ff5c7c' }}>- Removed Steps in Run 2 ({removed.length}):</b>
-                <div style={{ fontSize: '12px', color: '#8d9bb0', marginTop: '4px' }}>{removed.join(', ')}</div>
+                <div style={{ fontSize: '12px', color: '#8d9bb0', marginTop: '4px' }}>{removed.map((item) => item.event_id).join(', ')}</div>
               </div>
             )}
           </div>

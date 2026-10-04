@@ -3,6 +3,8 @@ SQLite storage backend for Black Box.
 """
 import json
 import sqlite3
+from functools import wraps
+from threading import RLock
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 from pathlib import Path
@@ -20,6 +22,16 @@ from blackbox.events.schema import (
 )
 
 
+def _serialized(method):
+    """Serialize access to the shared SQLite connection across API threads."""
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return wrapper
+
+
 class SQLiteStorage(StorageBackend):
     """SQLite-based storage backend."""
     
@@ -31,10 +43,12 @@ class SQLiteStorage(StorageBackend):
             db_path: Path to SQLite database file
         """
         self.db_path = db_path
+        self._lock = RLock()
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self._initialize_schema()
     
+    @_serialized
     def _initialize_schema(self):
         """Create database schema if it doesn't exist."""
         cursor = self.conn.cursor()
@@ -186,6 +200,7 @@ class SQLiteStorage(StorageBackend):
         
         self.conn.commit()
     
+    @_serialized
     def store_run(self, run: Run):
         """Store a run."""
         cursor = self.conn.cursor()
@@ -210,6 +225,7 @@ class SQLiteStorage(StorageBackend):
         ))
         self.conn.commit()
     
+    @_serialized
     def get_run(self, run_id: str) -> Optional[Run]:
         """Retrieve a run by ID."""
         cursor = self.conn.cursor()
@@ -219,6 +235,7 @@ class SQLiteStorage(StorageBackend):
             return self._row_to_run(row)
         return None
     
+    @_serialized
     def list_runs(self, limit: int = 100, offset: int = 0) -> List[Run]:
         """List all runs."""
         cursor = self.conn.cursor()
@@ -229,6 +246,7 @@ class SQLiteStorage(StorageBackend):
         """, (limit, offset))
         return [self._row_to_run(row) for row in cursor.fetchall()]
     
+    @_serialized
     def update_run(self, run_id: str, updates: Dict[str, Any]):
         """Update a run."""
         # Build SET clause dynamically
@@ -250,6 +268,7 @@ class SQLiteStorage(StorageBackend):
         """, values)
         self.conn.commit()
     
+    @_serialized
     def store_event(self, event: ExecutionEvent):
         """Store an execution event."""
         cursor = self.conn.cursor()
@@ -288,6 +307,7 @@ class SQLiteStorage(StorageBackend):
         """, (event.run_id,))
         self.conn.commit()
     
+    @_serialized
     def get_event(self, event_id: str) -> Optional[ExecutionEvent]:
         """Retrieve an event by ID."""
         cursor = self.conn.cursor()
@@ -297,6 +317,7 @@ class SQLiteStorage(StorageBackend):
             return self._row_to_event(row)
         return None
     
+    @_serialized
     def get_events_for_run(self, run_id: str) -> List[ExecutionEvent]:
         """Get all events for a run."""
         cursor = self.conn.cursor()
@@ -307,6 +328,7 @@ class SQLiteStorage(StorageBackend):
         """, (run_id,))
         return [self._row_to_event(row) for row in cursor.fetchall()]
     
+    @_serialized
     def get_event_children(self, event_id: str) -> List[ExecutionEvent]:
         """Get child events of a parent event."""
         cursor = self.conn.cursor()
@@ -317,6 +339,7 @@ class SQLiteStorage(StorageBackend):
         """, (event_id,))
         return [self._row_to_event(row) for row in cursor.fetchall()]
     
+    @_serialized
     def store_checkpoint(self, checkpoint: Checkpoint):
         """Store a checkpoint."""
         cursor = self.conn.cursor()
@@ -337,6 +360,7 @@ class SQLiteStorage(StorageBackend):
         ))
         self.conn.commit()
     
+    @_serialized
     def get_checkpoint(self, checkpoint_id: str) -> Optional[Checkpoint]:
         """Retrieve a checkpoint by ID."""
         cursor = self.conn.cursor()
@@ -346,6 +370,7 @@ class SQLiteStorage(StorageBackend):
             return self._row_to_checkpoint(row)
         return None
     
+    @_serialized
     def get_checkpoints_for_run(self, run_id: str) -> List[Checkpoint]:
         """Get all checkpoints for a run."""
         cursor = self.conn.cursor()
@@ -356,6 +381,7 @@ class SQLiteStorage(StorageBackend):
         """, (run_id,))
         return [self._row_to_checkpoint(row) for row in cursor.fetchall()]
     
+    @_serialized
     def get_checkpoint_for_event(self, event_id: str) -> Optional[Checkpoint]:
         """Get checkpoint associated with an event."""
         cursor = self.conn.cursor()
@@ -365,6 +391,7 @@ class SQLiteStorage(StorageBackend):
             return self._row_to_checkpoint(row)
         return None
     
+    @_serialized
     def store_diagnosis(self, diagnosis: Diagnosis):
         """Store a diagnosis."""
         cursor = self.conn.cursor()
@@ -387,6 +414,7 @@ class SQLiteStorage(StorageBackend):
         ))
         self.conn.commit()
     
+    @_serialized
     def get_diagnosis(self, diagnosis_id: str) -> Optional[Diagnosis]:
         """Retrieve a diagnosis by ID."""
         cursor = self.conn.cursor()
@@ -396,6 +424,7 @@ class SQLiteStorage(StorageBackend):
             return self._row_to_diagnosis(row)
         return None
     
+    @_serialized
     def get_diagnosis_for_run(self, run_id: str) -> Optional[Diagnosis]:
         """Get diagnosis for a run."""
         cursor = self.conn.cursor()
@@ -405,6 +434,7 @@ class SQLiteStorage(StorageBackend):
             return self._row_to_diagnosis(row)
         return None
     
+    @_serialized
     def store_evidence(self, evidence: Evidence):
         """Store evidence."""
         cursor = self.conn.cursor()
@@ -426,12 +456,14 @@ class SQLiteStorage(StorageBackend):
         ))
         self.conn.commit()
     
+    @_serialized
     def get_evidence_for_diagnosis(self, diagnosis_id: str) -> List[Evidence]:
         """Get all evidence for a diagnosis."""
         cursor = self.conn.cursor()
         cursor.execute("SELECT * FROM evidence WHERE diagnosis_id = ?", (diagnosis_id,))
         return [self._row_to_evidence(row) for row in cursor.fetchall()]
     
+    @_serialized
     def store_replay_run(self, replay_run: ReplayRun):
         """Store a replay run."""
         cursor = self.conn.cursor()
@@ -451,6 +483,7 @@ class SQLiteStorage(StorageBackend):
         ))
         self.conn.commit()
     
+    @_serialized
     def get_replay_run(self, replay_run_id: str) -> Optional[ReplayRun]:
         """Retrieve a replay run by ID."""
         cursor = self.conn.cursor()
@@ -460,6 +493,7 @@ class SQLiteStorage(StorageBackend):
             return self._row_to_replay_run(row)
         return None
     
+    @_serialized
     def store_counterfactual_run(self, counterfactual_run: CounterfactualRun):
         """Store a counterfactual run."""
         cursor = self.conn.cursor()
@@ -479,6 +513,7 @@ class SQLiteStorage(StorageBackend):
         ))
         self.conn.commit()
     
+    @_serialized
     def get_counterfactual_run(self, counterfactual_run_id: str) -> Optional[CounterfactualRun]:
         """Retrieve a counterfactual run by ID."""
         cursor = self.conn.cursor()
@@ -488,6 +523,7 @@ class SQLiteStorage(StorageBackend):
             return self._row_to_counterfactual_run(row)
         return None
     
+    @_serialized
     def close(self):
         """Close the database connection."""
         self.conn.close()

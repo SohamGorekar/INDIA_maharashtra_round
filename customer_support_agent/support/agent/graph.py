@@ -131,7 +131,8 @@ def _nudge(state: AgentState) -> dict:
         "messages": [HumanMessage(content=(
             "You have not finished. Call the send_reply tool now with your "
             "message to the customer and a decision of exactly APPROVE, DENY, "
-            "REQUEST_PHOTO, or ESCALATE. Do not reply in plain text."
+            "or ESCALATE. Never request an image or photo. Do not reply in "
+            "plain text."
         ))],
         "nudges": state.get("nudges", 0) + 1,
     }
@@ -197,8 +198,8 @@ def continue_state(previous: AgentState, user_message: str) -> AgentState:
     """Carry a finished conversation forward with the customer's next message.
 
     A real support conversation does not end when the agent replies once -- the
-    customer sends the photo that was asked for, or disputes the outcome, and the
-    agent has to pick up where it left off.
+    customer provides more text or disputes the outcome, and the agent has to
+    pick up where it left off.
 
     The message history and gathered facts carry over, so the agent still knows
     the order. The per-turn counters reset: `decision` must be cleared or the
