@@ -1,20 +1,39 @@
+/* ================================================================
+   BLACK BOX / CUSTOMER SUPPORT AGENT
+   STONE + INK — ARCHITECTURAL / EDITORIAL UI
+   ================================================================ */
+
 :root {
-  --bg: #0f1116;
-  --panel: #171a21;
-  --panel-2: #1e222b;
-  --border: #2a2f3a;
-  --text: #e6e8ec;
-  --muted: #9aa1ad;
-  --accent: #5b8def;
+  --paper: #f2f0e9;
+  --paper-deep: #e7e3da;
+  --stone: #d5d1c7;
+  --stone-dark: #8b877e;
 
-  --approve: #1a7f37;
-  --deny: #b42318;
-  --photo: #b54708;
-  --escalate: #1f6feb;
+  --ink: #111111;
+  --ink-soft: #292825;
+  --muted: #6e6a62;
 
-  color-scheme: dark;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+  --line: #bdb8ad;
+  --line-dark: #77736b;
+
+  --failure: #8e2525;
+  --failure-light: #ead8d5;
+
+  --success: #365b43;
+  --success-light: #dce6dd;
+
+  --warning: #85652d;
+  --warning-light: #eee5d1;
+
+  color-scheme: light;
+
+  font-family:
+    Inter,
+    Helvetica Neue,
+    Helvetica,
+    Arial,
     sans-serif;
+
   font-size: 15px;
   line-height: 1.55;
 }
@@ -23,69 +42,122 @@
   box-sizing: border-box;
 }
 
+html {
+  background: var(--paper);
+}
+
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* ================================================================
+   TYPOGRAPHY
+   ================================================================ */
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin-top: 0;
+}
+
+code,
+pre,
+.step-tool,
+.code {
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    "Roboto Mono",
+    Consolas,
+    monospace;
 }
 
 code,
 pre {
-  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas,
-    monospace;
-  font-size: 12.5px;
+  font-size: 12px;
 }
+
+/* ================================================================
+   GLOBAL BUTTONS
+   Preserve all existing functionality.
+   Only visual styling changes.
+   ================================================================ */
 
 button {
   font: inherit;
   cursor: pointer;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--panel-2);
-  color: var(--text);
-  padding: 0.5rem 0.9rem;
-  transition: background 0.12s ease, border-color 0.12s ease;
+
+  border: 1px solid var(--ink);
+  border-radius: 0;
+
+  background: var(--ink);
+  color: var(--paper);
+
+  padding: 0.58rem 0.9rem;
+
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    border-color 120ms ease;
 }
 
 button:hover:not(:disabled) {
-  border-color: #3a4150;
-  background: #242935;
+  background: var(--paper);
+  color: var(--ink);
 }
 
 button:disabled {
-  opacity: 0.45;
+  opacity: 0.38;
   cursor: not-allowed;
 }
 
 button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
   font-weight: 600;
 }
 
 button.primary:hover:not(:disabled) {
-  background: #4a7cde;
-  border-color: #4a7cde;
+  background: var(--failure);
+  border-color: var(--failure);
+  color: #fff;
 }
 
+/* ================================================================
+   FORM ELEMENTS
+   ================================================================ */
+
 select,
-input[type='text'],
+input[type="text"],
+input[type="email"],
+input[type="password"],
 textarea {
   width: 100%;
+
   font: inherit;
-  color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.5rem 0.65rem;
+  color: var(--ink);
+
+  background: #f8f6f0;
+
+  border: 1px solid var(--line-dark);
+  border-radius: 0;
+
+  padding: 0.62rem 0.7rem;
+
+  box-shadow: none;
 }
 
 select:focus,
 input:focus,
 textarea:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--ink);
+  box-shadow: inset 3px 0 0 var(--ink);
 }
 
 textarea {
@@ -95,497 +167,917 @@ textarea {
 
 label {
   display: block;
-  font-size: 12px;
+
+  font-size: 10px;
+  line-height: 1.2;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.14em;
+
   color: var(--muted);
-  margin-bottom: 0.35rem;
+
+  margin-bottom: 0.45rem;
 }
 
-/* --- layout -------------------------------------------------------------- */
+/* ================================================================
+   GENERAL LAYOUT
+   ================================================================ */
 
 .app {
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: 310px minmax(0, 1fr);
+
   min-height: 100vh;
+
+  background:
+    linear-gradient(
+      to right,
+      transparent 0,
+      transparent 309px,
+      var(--line) 309px,
+      var(--line) 310px,
+      transparent 310px
+    ),
+    var(--paper);
 }
 
+/* ================================================================
+   SIDEBAR
+   ================================================================ */
+
 .sidebar {
-  background: var(--panel);
-  border-right: 1px solid var(--border);
-  padding: 1.25rem;
+  background: var(--paper);
+
+  border-right: 1px solid var(--line);
+
+  padding: 1.5rem 1.35rem;
+
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+
+  gap: 1.05rem;
+
   overflow-y: auto;
   max-height: 100vh;
 }
 
-.main {
-  padding: 1.75rem 2rem 4rem;
-  max-width: 940px;
+/* ================================================================
+   BRAND
+   ================================================================ */
+
+.brand {
+  padding-bottom: 1.15rem;
+
+  border-bottom: 1px solid var(--ink);
 }
 
 .brand h1 {
   margin: 0;
-  font-size: 1.15rem;
-  letter-spacing: -0.01em;
+
+  font-size: 1.05rem;
+  font-weight: 800;
+
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .brand p {
-  margin: 0.2rem 0 0;
-  font-size: 12px;
+  margin: 0.35rem 0 0;
+
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 10px;
+  line-height: 1.5;
+
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+
   color: var(--muted);
 }
 
+/* ================================================================
+   MAIN
+   ================================================================ */
+
+.main {
+  width: 100%;
+  max-width: 1180px;
+
+  padding: 2.25rem 3rem 5rem;
+}
+
+/* ================================================================
+   EDITORIAL SECTION LABELS
+   ================================================================ */
+
+.section-title {
+  margin: 0 0 0.6rem;
+
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 10px;
+  font-weight: 600;
+
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+
+  color: var(--muted);
+}
+
+.section-title::before {
+  content: "— ";
+  color: var(--ink);
+}
+
+/* ================================================================
+   FIELDS
+   ================================================================ */
+
 .field + .field {
-  margin-top: 0.9rem;
+  margin-top: 1rem;
 }
 
 .divider {
+  width: 100%;
   height: 1px;
-  background: var(--border);
+
+  background: var(--line-dark);
+
+  margin: 0.15rem 0;
 }
 
 .row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   gap: 0.75rem;
 }
 
 .muted {
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
-/* --- segmented control --------------------------------------------------- */
+/* ================================================================
+   SEGMENTED CONTROL
+   ================================================================ */
 
 .segmented {
-  display: flex;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 3px;
-  gap: 3px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+
+  padding: 0;
+
+  background: transparent;
 }
 
 .segmented button {
-  flex: 1;
-  border: none;
+  border: 0;
+  border-radius: 0;
+
   background: transparent;
-  padding: 0.38rem;
-  font-size: 13px;
+
   color: var(--muted);
+
+  padding: 0.6rem 0.4rem;
+
+  font-size: 10px;
+  font-weight: 600;
+
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--line);
 }
 
 .segmented button.active {
-  background: var(--accent);
-  color: #fff;
-  font-weight: 600;
+  background: var(--ink);
+  color: var(--paper);
 }
 
-/* --- toggle -------------------------------------------------------------- */
+/* ================================================================
+   TOGGLE
+   ================================================================ */
 
 .toggle {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+
+  gap: 0.55rem;
+
   cursor: pointer;
   user-select: none;
+
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .toggle input {
   appearance: none;
-  width: 38px;
-  height: 21px;
-  border-radius: 999px;
-  background: #39404e;
-  position: relative;
-  cursor: pointer;
-  transition: background 0.15s ease;
+
+  width: 34px;
+  height: 18px;
+
   flex-shrink: 0;
+
   margin: 0;
+
+  border: 1px solid var(--ink);
+
+  border-radius: 0;
+
+  background: var(--paper);
+
+  position: relative;
+
+  cursor: pointer;
 }
 
 .toggle input::after {
-  content: '';
+  content: "";
+
   position: absolute;
-  top: 2px;
+
+  width: 12px;
+  height: 12px;
+
   left: 2px;
-  width: 17px;
-  height: 17px;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform 0.15s ease;
+  top: 2px;
+
+  background: var(--ink);
+
+  transition: transform 120ms ease;
 }
 
 .toggle input:checked {
-  background: var(--accent);
+  background: var(--ink);
 }
 
 .toggle input:checked::after {
-  transform: translateX(17px);
+  background: var(--paper);
+  transform: translateX(16px);
 }
 
-/* --- cards --------------------------------------------------------------- */
+/* ================================================================
+   CARDS
+   Architectural cards = rectangular records.
+   ================================================================ */
 
 .card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: transparent;
+
+  border: 1px solid var(--line-dark);
+
+  border-radius: 0;
+
   padding: 0.9rem 1rem;
+
+  position: relative;
+}
+
+.card::before {
+  content: "";
+
+  position: absolute;
+
+  top: -1px;
+  left: -1px;
+
+  width: 28px;
+  height: 3px;
+
+  background: var(--ink);
 }
 
 .kv {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.3rem 0.9rem;
-  font-size: 13px;
+
+  grid-template-columns: 1fr auto;
+
+  gap: 0.42rem 1rem;
+
+  font-size: 12px;
 }
 
 .kv dt {
   color: var(--muted);
+
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .kv dd {
   margin: 0;
+
   text-align: right;
+
   font-variant-numeric: tabular-nums;
+
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 11px;
 }
 
-/* --- chat ---------------------------------------------------------------- */
+/* ================================================================
+   ALERTS
+   ================================================================ */
+
+.alert {
+  border-radius: 0;
+
+  padding: 0.8rem 0.95rem;
+
+  font-size: 13px;
+
+  border: 1px solid var(--failure);
+
+  background: var(--failure-light);
+
+  color: var(--ink);
+}
+
+.alert strong {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.alert.warn {
+  background: var(--warning-light);
+  border-color: var(--warning);
+}
+
+.alert pre {
+  margin: 0.55rem 0 0;
+
+  white-space: pre-wrap;
+
+  color: var(--failure);
+}
+
+/* ================================================================
+   EMPTY STATE
+   ================================================================ */
+
+.empty {
+  min-height: 55vh;
+
+  display: grid;
+  place-items: center;
+
+  text-align: center;
+
+  color: var(--muted);
+
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ================================================================
+   RESULT STACK
+   ================================================================ */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+
+  gap: 2rem;
+}
+
+/* ================================================================
+   CUSTOMER / AGENT BUBBLES
+   ================================================================ */
 
 .bubble {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 0.85rem 1.05rem;
-  background: var(--panel);
+  border: 1px solid var(--line-dark);
+
+  border-radius: 0;
+
+  padding: 1rem 1.1rem;
+
+  background: transparent;
+
+  font-size: 14px;
 }
 
 .bubble.customer {
-  border-left: 3px solid #6b7280;
+  border-left: 5px solid var(--ink);
 }
 
 .bubble.agent {
-  border-left: 3px solid var(--accent);
+  border-left: 5px solid var(--success);
 }
 
 .bubble .who {
-  font-size: 11px;
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 9px;
+
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.14em;
+
   color: var(--muted);
-  margin-bottom: 0.35rem;
+
+  margin-bottom: 0.45rem;
 }
 
-/* --- decision badge ------------------------------------------------------ */
+/* ================================================================
+   DECISION
+   ================================================================ */
 
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.5rem 0.95rem;
-  border-radius: 8px;
-  font-weight: 600;
-  color: #fff;
+  gap: 0.7rem;
+
+  padding: 0.65rem 0.85rem;
+
+  border-radius: 0;
+
+  font-weight: 700;
+
+  color: var(--paper);
+
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+
+  border: 1px solid var(--ink);
 }
 
 .badge .code {
-  font-size: 11.5px;
-  opacity: 0.8;
-  letter-spacing: 0.05em;
+  font-size: 10px;
+  opacity: 0.7;
+  letter-spacing: 0.08em;
 }
 
-.badge.APPROVE { background: var(--approve); }
-.badge.DENY { background: var(--deny); }
-.badge.REQUEST_PHOTO { background: var(--photo); }
-.badge.ESCALATE { background: var(--escalate); }
-.badge.NONE { background: #4b5563; }
+.badge.APPROVE {
+  background: var(--success);
+  border-color: var(--success);
+}
 
-/* --- verdict ------------------------------------------------------------- */
+.badge.DENY {
+  background: var(--failure);
+  border-color: var(--failure);
+}
+
+.badge.REQUEST_PHOTO {
+  background: var(--warning);
+  border-color: var(--warning);
+}
+
+.badge.ESCALATE {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.badge.NONE {
+  background: var(--stone-dark);
+  border-color: var(--stone-dark);
+}
+
+/* ================================================================
+   VERDICT
+   ================================================================ */
 
 .verdict {
-  border-radius: 8px;
-  padding: 0.65rem 0.9rem;
-  font-size: 13.5px;
+  border-radius: 0;
+
+  padding: 0.85rem 1rem;
+
+  font-size: 13px;
+
   border: 1px solid;
 }
 
 .verdict.ok {
-  background: rgba(26, 127, 55, 0.12);
-  border-color: rgba(26, 127, 55, 0.5);
+  background: var(--success-light);
+  border-color: var(--success);
+
+  color: var(--ink);
 }
 
 .verdict.bad {
-  background: rgba(180, 35, 24, 0.12);
-  border-color: rgba(180, 35, 24, 0.5);
+  background: var(--failure-light);
+  border-color: var(--failure);
+
+  color: var(--ink);
 }
 
-/* --- timeline ------------------------------------------------------------ */
+/* ================================================================
+   TIMELINE
+   ================================================================ */
 
 .step {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel);
+  border: 0;
+
+  border-top: 1px solid var(--line-dark);
+
+  border-radius: 0;
+
+  background: transparent;
+
   overflow: hidden;
 }
 
+.step:last-child {
+  border-bottom: 1px solid var(--line-dark);
+}
+
 .step + .step {
-  margin-top: 0.5rem;
+  margin-top: 0;
 }
 
 .step-head {
   width: 100%;
-  display: flex;
+
+  display: grid;
+
+  grid-template-columns: 54px minmax(180px, 1fr) minmax(140px, 0.8fr);
+
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.7rem 0.9rem;
+
+  gap: 1rem;
+
+  padding: 0.95rem 0.5rem;
+
   background: transparent;
-  border: none;
+
+  border: 0;
+
   border-radius: 0;
+
+  color: var(--ink);
+
   text-align: left;
 }
 
 .step-head:hover {
-  background: var(--panel-2);
+  background: var(--stone);
+  color: var(--ink);
 }
 
 .step-num {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  display: grid;
-  place-items: center;
-  font-size: 11.5px;
-  color: var(--muted);
+  width: auto;
+  height: auto;
+
+  border-radius: 0;
+
+  background: transparent;
+
+  border: 0;
+
+  display: block;
+
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 22px;
+
+  font-weight: 400;
+
+  color: var(--stone-dark);
+
   font-variant-numeric: tabular-nums;
 }
 
 .step-title {
-  font-weight: 500;
+  font-size: 13px;
+
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.04em;
 }
 
 .step-tool {
-  font-size: 11.5px;
+  font-size: 10px;
+
   color: var(--muted);
-  font-family: ui-monospace, monospace;
+
+  letter-spacing: 0.02em;
 }
 
 .step-headline {
   margin-left: auto;
-  font-size: 12.5px;
+
+  font-size: 11px;
+
   color: var(--muted);
+
   text-align: right;
+
   white-space: nowrap;
+
   overflow: hidden;
+
   text-overflow: ellipsis;
-  max-width: 44%;
 }
 
 .step-headline.error {
-  color: #f17171;
+  color: var(--failure);
+
+  font-weight: 700;
 }
 
 .step-body {
-  border-top: 1px solid var(--border);
-  padding: 0.85rem 0.9rem;
-  background: #12151b;
+  border-top: 1px solid var(--line);
+
+  padding: 1rem 0.5rem 1.2rem 4.9rem;
+
+  background: var(--paper-deep);
 }
 
 .step-body h4 {
   margin: 0 0 0.35rem;
-  font-size: 11px;
+
+  font-size: 9px;
+
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+
+  letter-spacing: 0.14em;
+
   color: var(--muted);
-  font-weight: 500;
+
+  font-weight: 700;
 }
 
 .step-body pre {
-  margin: 0 0 0.9rem;
-  padding: 0.65rem 0.75rem;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 7px;
+  margin: 0 0 1rem;
+
+  padding: 0.75rem;
+
+  background: #ebe8df;
+
+  border: 1px solid var(--line);
+
+  border-radius: 0;
+
   overflow-x: auto;
+
   max-height: 320px;
+
   overflow-y: auto;
+
+  color: var(--ink);
 }
 
 .step-body pre:last-child {
   margin-bottom: 0;
 }
 
-/* --- misc ---------------------------------------------------------------- */
-
-.alert {
-  border-radius: 8px;
-  padding: 0.7rem 0.9rem;
-  font-size: 13.5px;
-  border: 1px solid;
-  background: rgba(180, 35, 24, 0.1);
-  border-color: rgba(180, 35, 24, 0.45);
-}
-
-.alert.warn {
-  background: rgba(181, 71, 8, 0.12);
-  border-color: rgba(181, 71, 8, 0.5);
-}
-
-.alert pre {
-  margin: 0.5rem 0 0;
-  white-space: pre-wrap;
-}
-
-.empty {
-  text-align: center;
-  padding: 4rem 1rem;
-  color: var(--muted);
-}
-
-.stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
-}
-
-.section-title {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--muted);
-  margin: 0 0 0.6rem;
-  font-weight: 600;
-}
+/* ================================================================
+   SPINNER
+   ================================================================ */
 
 .spinner {
-  width: 15px;
-  height: 15px;
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  border-top-color: #fff;
+  width: 13px;
+  height: 13px;
+
+  border: 2px solid rgba(255, 255, 255, 0.3);
+
+  border-top-color: var(--paper);
+
   border-radius: 50%;
+
   animation: spin 0.7s linear infinite;
+
   display: inline-block;
+
   vertical-align: -2px;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-@media (max-width: 860px) {
-  .app {
-    grid-template-columns: 1fr;
-  }
-  .sidebar {
-    max-height: none;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-  .main {
-    padding: 1.25rem 1rem 3rem;
+  to {
+    transform: rotate(360deg);
   }
 }
 
-/* ===========================================================================
-   Customer chat  (the "/" route)
-   A support site a customer would actually use: no decision codes, no tool
-   names, nothing about how the answer was reached.
-   =========================================================================== */
+/* ================================================================
+   CUSTOMER CHAT
+   ================================================================ */
 
 .chat-page {
   display: grid;
+
   grid-template-rows: auto 1fr auto;
+
   height: 100vh;
-  max-width: 820px;
+
+  max-width: 940px;
+
   margin: 0 auto;
-  background: var(--panel);
-  border-left: 1px solid var(--border);
-  border-right: 1px solid var(--border);
+
+  background: var(--paper);
+
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
 }
 
-/* --- header -------------------------------------------------------------- */
+/* ================================================================
+   SITE HEADER
+   ================================================================ */
+
+.site-header {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 1rem;
+
+  padding: 1rem 1.35rem;
+
+  border-bottom: 1px solid var(--ink);
+
+  background: var(--paper);
+}
 
 .chat-header {
   display: flex;
+
   align-items: center;
+
   justify-content: space-between;
+
   gap: 1rem;
-  padding: 0.85rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
+
+  padding: 1rem 1.35rem;
+
+  border-bottom: 1px solid var(--ink);
+
+  background: var(--paper);
 }
 
 .chat-brand {
   display: flex;
+
   align-items: center;
-  gap: 0.7rem;
+
+  gap: 0.8rem;
 }
 
 .chat-brand .logo {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), #7aa5f5);
-  color: #fff;
+  width: 38px;
+  height: 38px;
+
+  border-radius: 0;
+
+  background: var(--ink);
+
+  color: var(--paper);
+
   display: grid;
+
   place-items: center;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
   font-weight: 700;
-  font-size: 17px;
+
+  font-size: 19px;
 }
 
 .chat-brand h1 {
   margin: 0;
-  font-size: 0.98rem;
-  letter-spacing: -0.01em;
+
+  font-size: 0.95rem;
+
+  font-weight: 800;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.07em;
 }
 
 .chat-brand p {
-  margin: 0;
-  font-size: 11.5px;
+  margin: 0.15rem 0 0;
+
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 9px;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.08em;
+
   color: var(--muted);
 }
 
 .chat-header-right {
   display: flex;
+
   align-items: center;
-  gap: 0.5rem;
+
+  gap: 0.7rem;
 }
 
 .who-select {
   width: auto;
+
   padding: 0.35rem 0.55rem;
-  font-size: 12.5px;
+
+  font-size: 12px;
+
   color: var(--muted);
 }
 
 button.ghost {
   background: transparent;
-  font-size: 12.5px;
-  padding: 0.38rem 0.7rem;
+
+  border-color: transparent;
+
   color: var(--muted);
+
+  font-size: 10px;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.1em;
+
+  padding: 0.4rem 0.6rem;
 }
 
-/* --- thread -------------------------------------------------------------- */
+button.ghost:hover {
+  background: var(--ink);
+
+  color: var(--paper);
+
+  border-color: var(--ink);
+}
+
+/* ================================================================
+   CHAT THREAD
+   ================================================================ */
 
 .chat-scroll {
   overflow-y: auto;
-  padding: 1.5rem 1.25rem 0.5rem;
+
+  padding: 2rem 1.75rem 1rem;
+
+  background:
+    linear-gradient(
+      to right,
+      transparent 0,
+      transparent 9%,
+      rgba(17, 17, 17, 0.04) 9%,
+      rgba(17, 17, 17, 0.04) calc(9% + 1px),
+      transparent calc(9% + 1px)
+    ),
+    var(--paper);
 }
 
 .chat-thread {
   display: flex;
+
   flex-direction: column;
-  gap: 0.7rem;
+
+  gap: 1rem;
 }
 
 .msg {
   display: flex;
-  max-width: 78%;
+
+  max-width: 76%;
 }
 
 .msg.agent {
@@ -594,44 +1086,70 @@ button.ghost {
 
 .msg.customer {
   align-self: flex-end;
+
   justify-content: flex-end;
 }
 
 .msg-inner {
-  padding: 0.7rem 0.95rem;
-  border-radius: 16px;
-  font-size: 14.5px;
-  line-height: 1.6;
+  padding: 0.9rem 1rem;
+
+  border-radius: 0;
+
+  font-size: 14px;
+
+  line-height: 1.65;
 }
 
 .msg.agent .msg-inner {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-bottom-left-radius: 5px;
+  background: var(--stone);
+
+  border: 1px solid var(--line);
+
+  border-left: 4px solid var(--ink);
 }
 
 .msg.customer .msg-inner {
-  background: var(--accent);
-  color: #fff;
-  border-bottom-right-radius: 5px;
+  background: var(--ink);
+
+  color: var(--paper);
+
+  border: 1px solid var(--ink);
 }
 
 .msg-inner p {
   margin: 0;
+
   white-space: pre-wrap;
 }
 
-/* --- attachments --------------------------------------------------------- */
+/* ================================================================
+   ATTACHMENTS
+   ================================================================ */
 
 .attachment {
   display: flex;
+
   align-items: center;
+
   gap: 0.45rem;
-  font-size: 12.5px;
-  padding: 0.4rem 0.6rem;
-  margin-bottom: 0.4rem;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.18);
+
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 10px;
+
+  padding: 0.45rem 0.6rem;
+
+  margin-bottom: 0.45rem;
+
+  border-radius: 0;
+
+  background: rgba(0, 0, 0, 0.07);
+
+  border: 1px solid rgba(0, 0, 0, 0.15);
 }
 
 .msg-inner p + .attachment,
@@ -640,364 +1158,721 @@ button.ghost {
 }
 
 .attachment-icon {
-  opacity: 0.85;
+  opacity: 0.75;
 }
 
-/* --- typing -------------------------------------------------------------- */
+/* ================================================================
+   TYPING
+   ================================================================ */
 
 .typing {
   display: flex;
+
   gap: 4px;
+
   padding: 0.85rem 1rem;
 }
 
 .typing span {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
+
   border-radius: 50%;
-  background: var(--muted);
+
+  background: var(--ink);
+
   animation: blink 1.3s infinite ease-in-out;
 }
 
-.typing span:nth-child(2) { animation-delay: 0.18s; }
-.typing span:nth-child(3) { animation-delay: 0.36s; }
+.typing span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.typing span:nth-child(3) {
+  animation-delay: 0.36s;
+}
 
 @keyframes blink {
-  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
-  30%           { opacity: 1;    transform: translateY(-3px); }
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
 }
 
 .chat-error {
   align-self: center;
-  font-size: 12.5px;
-  color: #f17171;
-  background: rgba(180, 35, 24, 0.12);
-  border: 1px solid rgba(180, 35, 24, 0.4);
-  border-radius: 8px;
+
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 10px;
+
+  color: var(--failure);
+
+  background: var(--failure-light);
+
+  border: 1px solid var(--failure);
+
+  border-radius: 0;
+
   padding: 0.5rem 0.8rem;
 }
 
-/* --- composer ------------------------------------------------------------ */
+/* ================================================================
+   CHAT COMPOSER
+   ================================================================ */
 
 .composer-wrap {
-  padding: 0.75rem 1.25rem 1rem;
-  border-top: 1px solid var(--border);
-  background: var(--panel);
+  padding: 0.9rem 1.35rem 1rem;
+
+  border-top: 1px solid var(--ink);
+
+  background: var(--paper);
 }
 
 .composer {
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--panel-2);
+  border: 1px solid var(--ink);
+
+  border-radius: 0;
+
+  background: #f8f6f0;
+
   padding: 0.4rem;
-  transition: border-color 0.12s ease;
 }
 
 .composer:focus-within {
-  border-color: var(--accent);
+  border-color: var(--failure);
+
+  box-shadow: inset 4px 0 0 var(--failure);
 }
 
 .composer-row {
   display: flex;
+
   align-items: flex-end;
+
   gap: 0.4rem;
 }
 
 .composer textarea {
   flex: 1;
+
   border: none;
+
   background: transparent;
+
   resize: none;
+
   min-height: 34px;
+
   max-height: 150px;
+
   padding: 0.45rem 0.3rem;
-  font-size: 14.5px;
+
+  font-size: 14px;
 }
 
 .composer textarea:focus {
   outline: none;
+
   border: none;
+
+  box-shadow: none;
 }
 
 .composer button.attach,
 .composer button.send {
   width: 34px;
   height: 34px;
+
   flex-shrink: 0;
+
   padding: 0;
+
   display: grid;
+
   place-items: center;
-  border-radius: 9px;
+
+  border-radius: 0;
+
   font-size: 14px;
 }
 
 .composer button.attach {
   background: transparent;
+
   border-color: transparent;
+
   color: var(--muted);
 }
 
 .composer button.attach:hover:not(:disabled) {
-  background: #272c37;
-  color: var(--text);
+  background: var(--stone);
+
+  color: var(--ink);
 }
 
 .composer button.attach.on {
-  color: var(--accent);
+  color: var(--failure);
 }
 
 .composer button.send {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--ink);
+
+  border-color: var(--ink);
+
+  color: var(--paper);
 }
 
 .composer button.send:hover:not(:disabled) {
-  background: #4a7cde;
+  background: var(--failure);
+
+  border-color: var(--failure);
 }
 
 .pending-photo {
   display: inline-flex;
+
   align-items: center;
+
   gap: 0.45rem;
+
   margin: 0.25rem 0.3rem 0.5rem;
+
   padding: 0.35rem 0.55rem;
-  border-radius: 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  font-size: 12.5px;
-  color: var(--muted);
+
+  border-radius: 0;
+
+  background: var(--stone);
+
+  border: 1px solid var(--line);
+
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 10px;
+
+  color: var(--ink);
 }
 
 .pending-photo .remove {
   border: none;
+
   background: transparent;
+
   padding: 0 0.15rem;
+
   font-size: 15px;
+
   line-height: 1;
+
   color: var(--muted);
 }
 
 .composer-hint {
   margin: 0.5rem 0 0;
+
   text-align: center;
-  font-size: 11px;
+
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 9px;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.08em;
+
   color: var(--muted);
 }
 
-@media (max-width: 860px) {
-  .chat-page {
-    border: none;
-  }
-  .msg {
-    max-width: 88%;
-  }
-}
-
-/* ===========================================================================
-   Sign in
-   =========================================================================== */
+/* ================================================================
+   LOGIN
+   ================================================================ */
 
 .login-page {
   min-height: 100vh;
+
   display: grid;
+
   place-items: center;
-  padding: 1.5rem;
+
+  padding: 2rem;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 15%,
+      rgba(17, 17, 17, 0.04) 15%,
+      rgba(17, 17, 17, 0.04) calc(15% + 1px),
+      transparent calc(15% + 1px)
+    ),
+    var(--paper);
 }
 
 .login-card {
   width: 100%;
-  max-width: 370px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 1.9rem 1.7rem;
+
+  max-width: 410px;
+
+  background: var(--paper);
+
+  border: 1px solid var(--ink);
+
+  border-radius: 0;
+
+  padding: 2.2rem;
+
+  position: relative;
+}
+
+.login-card::before {
+  content: "CUSTOMER SUPPORT / ACCESS";
+
+  position: absolute;
+
+  top: -1px;
+  left: -1px;
+
+  transform: translateY(-100%);
+
+  padding: 0.35rem 0;
+
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 9px;
+
+  letter-spacing: 0.14em;
+
+  color: var(--muted);
 }
 
 .login-brand {
-  text-align: center;
-  margin-bottom: 1.6rem;
+  text-align: left;
+
+  margin-bottom: 2rem;
+
+  padding-bottom: 1.2rem;
+
+  border-bottom: 1px solid var(--ink);
 }
 
 .login-brand .logo {
-  width: 46px;
-  height: 46px;
-  margin: 0 auto 0.75rem;
-  border-radius: 13px;
-  background: linear-gradient(135deg, var(--accent), #7aa5f5);
-  color: #fff;
+  width: 48px;
+  height: 48px;
+
+  margin: 0 0 1rem;
+
+  border-radius: 0;
+
+  background: var(--ink);
+
+  color: var(--paper);
+
   display: grid;
+
   place-items: center;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
   font-weight: 700;
-  font-size: 21px;
+
+  font-size: 22px;
 }
 
 .login-brand h1 {
   margin: 0;
-  font-size: 1.25rem;
-  letter-spacing: -0.015em;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 2rem;
+
+  font-weight: 500;
+
+  letter-spacing: -0.03em;
 }
 
 .login-brand p {
-  margin: 0.3rem 0 0;
-  font-size: 13px;
+  margin: 0.45rem 0 0;
+
+  font-size: 11px;
+
   color: var(--muted);
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.08em;
 }
 
 .login-error {
   margin-top: 1rem;
-  font-size: 13px;
-  color: #f17171;
-  background: rgba(180, 35, 24, 0.12);
-  border: 1px solid rgba(180, 35, 24, 0.4);
-  border-radius: 8px;
+
+  font-size: 12px;
+
+  color: var(--failure);
+
+  background: var(--failure-light);
+
+  border: 1px solid var(--failure);
+
+  border-radius: 0;
+
   padding: 0.55rem 0.75rem;
 }
 
 .login-submit {
   width: 100%;
+
   margin-top: 1.3rem;
-  padding: 0.62rem;
+
+  padding: 0.7rem;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.1em;
+
+  font-size: 10px;
 }
 
-/* ===========================================================================
-   Orders
-   =========================================================================== */
+/* ================================================================
+   ORDERS
+   ================================================================ */
 
 .orders-page {
   min-height: 100vh;
-  max-width: 820px;
-  margin: 0 auto;
-  background: var(--panel);
-  border-left: 1px solid var(--border);
-  border-right: 1px solid var(--border);
-}
 
-.site-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.85rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
+  max-width: 1080px;
+
+  margin: 0 auto;
+
+  background: var(--paper);
+
+  border-left: 1px solid var(--line);
+
+  border-right: 1px solid var(--line);
 }
 
 .orders-main {
-  padding: 1.4rem 1.25rem 3rem;
+  padding: 2.25rem 2.5rem 4rem;
+}
+
+.orders-main::before {
+  content: "CUSTOMER / ORDER ARCHIVE";
+
+  display: block;
+
+  margin-bottom: 0.8rem;
+
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 9px;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.14em;
+
+  color: var(--muted);
 }
 
 .orders-hint {
-  margin: 0 0 1rem;
+  margin: 0 0 1.5rem;
+
   font-size: 13px;
+
   color: var(--muted);
+
+  max-width: 650px;
 }
 
 .order-list {
   display: flex;
+
   flex-direction: column;
-  gap: 0.6rem;
+
+  gap: 0;
 }
 
 .order-card {
-  display: flex;
+  display: grid;
+
+  grid-template-columns: minmax(0, 1fr) auto;
+
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  background: var(--panel-2);
+
+  gap: 2rem;
+
+  padding: 1.15rem 0.25rem;
+
+  border-top: 1px solid var(--line-dark);
+
+  border-radius: 0;
+
+  background: transparent;
+}
+
+.order-card:last-child {
+  border-bottom: 1px solid var(--line-dark);
 }
 
 .order-title-row {
   display: flex;
+
   align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 0.3rem;
+
+  gap: 0.8rem;
+
+  margin-bottom: 0.45rem;
 }
 
 .order-card h3 {
   margin: 0;
-  font-size: 0.97rem;
-  font-weight: 600;
+
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 1.2rem;
+
+  font-weight: 500;
+
   text-transform: capitalize;
+
+  letter-spacing: -0.02em;
 }
 
 .order-meta {
   display: flex;
+
   flex-wrap: wrap;
-  gap: 0.3rem 0.85rem;
-  font-size: 12.5px;
+
+  gap: 0.35rem 1rem;
+
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 9px;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.05em;
+
   color: var(--muted);
 }
 
 .order-meta .final {
-  color: #d99a4e;
+  color: var(--failure);
 }
 
 .order-side {
   display: flex;
+
   flex-direction: column;
+
   align-items: flex-end;
+
   gap: 0.5rem;
+
   flex-shrink: 0;
 }
 
 .order-price {
-  font-weight: 600;
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  font-size: 1.25rem;
+
+  font-weight: 500;
+
   font-variant-numeric: tabular-nums;
+
   white-space: nowrap;
 }
 
 .pill {
-  font-size: 11px;
-  padding: 0.12rem 0.5rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  text-transform: capitalize;
+  font-family:
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+
+  font-size: 8px;
+
+  padding: 0.2rem 0.45rem;
+
+  border-radius: 0;
+
+  border: 1px solid var(--line-dark);
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.08em;
+
   white-space: nowrap;
 }
 
 .pill.ok {
-  color: #6ec28a;
-  border-color: rgba(110, 194, 138, 0.4);
-  background: rgba(26, 127, 55, 0.12);
+  color: var(--success);
+
+  border-color: var(--success);
+
+  background: transparent;
 }
 
 .pill.muted {
   color: var(--muted);
 }
 
-/* Back arrow in the chat header */
+/* ================================================================
+   BACK BUTTON
+   ================================================================ */
+
 button.back {
   width: 32px;
   height: 36px;
+
   padding: 0;
+
   font-size: 22px;
+
   line-height: 1;
+
   background: transparent;
+
   border-color: transparent;
+
   color: var(--muted);
 }
 
 button.back:hover {
-  background: var(--panel-2);
-  color: var(--text);
+  background: var(--ink);
+
+  color: var(--paper);
 }
 
-@media (max-width: 860px) {
-  .orders-page {
-    border: none;
+/* ================================================================
+   RESPONSIVE
+   ================================================================ */
+
+@media (max-width: 900px) {
+  .app {
+    grid-template-columns: 1fr;
+    background: var(--paper);
   }
+
+  .sidebar {
+    max-height: none;
+
+    border-right: none;
+
+    border-bottom: 1px solid var(--ink);
+  }
+
+  .main {
+    padding: 1.5rem 1.25rem 3rem;
+  }
+
+  .step-head {
+    grid-template-columns: 42px minmax(130px, 1fr);
+  }
+
+  .step-headline {
+    grid-column: 2;
+    margin-left: 0;
+
+    text-align: left;
+
+    max-width: 100%;
+  }
+
+  .step-body {
+    padding-left: 3.8rem;
+  }
+}
+
+@media (max-width: 650px) {
+  .site-header,
+  .chat-header {
+    padding: 0.85rem 1rem;
+  }
+
+  .chat-header-right .muted {
+    display: none;
+  }
+
+  .chat-scroll {
+    padding: 1.25rem 1rem;
+  }
+
+  .composer-wrap {
+    padding: 0.75rem 1rem;
+  }
+
+  .msg {
+    max-width: 90%;
+  }
+
+  .orders-main {
+    padding: 1.5rem 1rem 3rem;
+  }
+
   .order-card {
-    flex-direction: column;
-    align-items: flex-start;
+    grid-template-columns: 1fr;
+
+    gap: 0.9rem;
   }
+
   .order-side {
-    flex-direction: row;
-    align-items: center;
     width: 100%;
+
+    flex-direction: row;
+
     justify-content: space-between;
+
+    align-items: center;
+  }
+
+  .login-card {
+    padding: 1.5rem;
+  }
+
+  .login-card::before {
+    display: none;
   }
 }
