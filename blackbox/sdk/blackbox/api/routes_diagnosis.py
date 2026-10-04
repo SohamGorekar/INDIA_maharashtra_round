@@ -85,7 +85,9 @@ def create_router(storage: StorageBackend) -> APIRouter:
             if not events:
                 raise HTTPException(status_code=400, detail="Run has no events")
 
-            diagnosis = DiagnosisModel().diagnose(run, events, storage=storage)
+            diagnosis = DiagnosisModel(simulated=True).diagnose(
+                run, events, storage=storage
+            )
             evidence = EvidenceGenerator(storage=storage).generate_evidence(
                 diagnosis, run, events
             )

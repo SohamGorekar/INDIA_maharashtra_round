@@ -169,6 +169,10 @@ class Diagnosis(BaseModel):
     # Results
     status: DiagnosisStatus = Field(..., description="Diagnosis status")
     suspected_event_id: Optional[str] = Field(None, description="Most suspected event")
+    suspected_event_ids: List[str] = Field(
+        default_factory=list,
+        description="Events selected as suspected failures",
+    )
     confidence: float = Field(..., description="Confidence score (0-1)")
     
     # Rankings

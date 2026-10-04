@@ -41,7 +41,10 @@ from support.blackbox_integration.adapter import LangGraphAdapter
 
 # Global configuration
 BLACKBOX_ENABLED = os.getenv("BLACKBOX_ENABLED", "true").lower() == "true"
-BLACKBOX_DB_PATH = os.getenv("BLACKBOX_DB_PATH", "customer_support_blackbox.db")
+BLACKBOX_DB_PATH = os.getenv(
+    "BLACKBOX_DB_PATH",
+    str(Path(__file__).resolve().parents[2] / "customer_support_blackbox.db"),
+)
 
 # Global Black Box infrastructure
 _storage = None

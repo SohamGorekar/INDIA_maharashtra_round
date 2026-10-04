@@ -210,7 +210,7 @@ export default function App() {
         {page === 'diagnosis' && (
           <section className="card">
             <h2>Failure Diagnosis</h2>
-            <p className="hint">Automated anomaly detection for the active order session.</p>
+            <p className="hint">Simulated diagnosis using the active order session&apos;s recorded stages.</p>
             <div className="section-run-select">
               <label>Target Order Session:</label>
               <select value={runId} onChange={(e) => setRunId(e.target.value)}>
@@ -223,7 +223,7 @@ export default function App() {
               </select>
             </div>
             <button className="primary" style={{ marginTop: '16px' }} disabled={!runId} onClick={() => doAction(() => api.diagnose(runId).then(setDiagnosis))}>
-              Analyze this request
+              Load saved diagnosis
             </button>
             {diagnosis && <DiagnosisResults diagnosis={diagnosis} events={events} />}
           </section>
@@ -620,7 +620,9 @@ function DiagnosisResults({ diagnosis, events }) {
   const result = diagnosis.diagnosis || diagnosis
   const rankings = result.rankings || result.ranking || []
   const eventMap = new Map(events.map((item) => [item.event_id, item]))
-  const suspectedEventId = result.suspected_event_id
+  const suspectedEventIds = result.suspected_event_ids || (
+    result.suspected_event_id ? [result.suspected_event_id] : []
+  )
   const confidence = Number(result.confidence || 0)
 
   return (
@@ -644,8 +646,8 @@ function DiagnosisResults({ diagnosis, events }) {
 
       <div className="diagnosis-heading">
         <div>
-          <h3>Stage suspicion scores</h3>
-          <p>Each stage is ranked by how strongly it contributed to the failure assessment.</p>
+          <h3>Stage suspicion scores <span className="simulated-badge">SIMULATED</span></h3>
+          <p>Scores are randomized for demonstration using this run&apos;s actual stages.</p>
         </div>
         <span className="diagnosis-scale">0% LOW · 100% HIGH</span>
       </div>
@@ -657,7 +659,7 @@ function DiagnosisResults({ diagnosis, events }) {
           {rankings.map((item) => {
             const event = eventMap.get(item.event_id)
             const score = Number(item.score || 0)
-            const isSuspected = item.event_id === suspectedEventId
+            const isSuspected = suspectedEventIds.includes(item.event_id)
             const stageName = event?.component_name || `Stage ${item.rank || ''}`.trim()
             const stageType = event?.component_type || 'workflow'
 

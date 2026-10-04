@@ -6,13 +6,16 @@ These routes extend the existing FastAPI app with Black Box functionality.
 import sys
 from pathlib import Path
 import queue
+import json
+import os
+import tempfile
 
 # Add Black Box SDK to path
 SDK_PATH = Path(__file__).resolve().parents[3] / "blackbox" / "sdk"
 if str(SDK_PATH) not in sys.path:
     sys.path.insert(0, str(SDK_PATH))
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
@@ -46,6 +49,12 @@ class CounterfactualRequest(BaseModel):
 
 # Create router
 router = APIRouter(prefix="/api/blackbox", tags=["blackbox"])
+DIAGNOSIS_DIR = Path(
+    os.getenv(
+        "BLACKBOX_DIAGNOSIS_DIR",
+        str(Path(__file__).resolve().parents[2] / "diagnosis_runs"),
+    )
+)
 
 
 # Initialize diagnosis model
@@ -56,7 +65,10 @@ def get_diagnosis_model():
     """Get or create diagnosis model."""
     global _diagnosis_model
     if _diagnosis_model is None:
-        _diagnosis_model = DiagnosisModel(model_name="heuristic_v1")
+        _diagnosis_model = DiagnosisModel(
+            model_name="simulated_demo",
+            simulated=True,
+        )
     return _diagnosis_model
 
 
@@ -73,6 +85,64 @@ def _require_storage():
     if not storage:
         raise HTTPException(503, "Black Box is not enabled")
     return storage
+
+
+def _diagnosis_path(run_id: str) -> Path:
+    """Return the JSON snapshot path for a run."""
+    safe_run_id = "".join(
+        character if character.isalnum() or character in "._-" else "_"
+        for character in run_id
+    )
+    return DIAGNOSIS_DIR / f"{safe_run_id}.json"
+
+
+def _read_saved_diagnosis(run_id: str) -> Optional[Dict[str, Any]]:
+    """Read a previously assigned diagnosis snapshot, if present."""
+    path = _diagnosis_path(run_id)
+    if not path.exists():
+        return None
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if payload.get("run_id") != run_id:
+            raise ValueError("Diagnosis snapshot run_id does not match requested run")
+        return payload
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(500, f"Failed to read diagnosis snapshot: {exc}") from exc
+
+
+def _write_saved_diagnosis(
+    run_id: str,
+    diagnosis: Dict[str, Any],
+    evidence: List[Dict[str, Any]],
+) -> None:
+    """Persist a diagnosis atomically so selection survives server restarts."""
+    DIAGNOSIS_DIR.mkdir(parents=True, exist_ok=True)
+    path = _diagnosis_path(run_id)
+    payload = {"run_id": run_id, "diagnosis": diagnosis, "evidence": evidence}
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=DIAGNOSIS_DIR,
+            prefix=f".{path.stem}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            json.dump(payload, handle, indent=2, default=str)
+            handle.write("\n")
+            temporary_path = Path(handle.name)
+        temporary_path.replace(path)
+    except OSError as exc:
+        if temporary_path and temporary_path.exists():
+            temporary_path.unlink()
+        raise HTTPException(500, f"Failed to save diagnosis snapshot: {exc}") from exc
+
+
+def _json_safe(value: Any) -> Any:
+    """Use the same JSON representation for database and snapshot responses."""
+    return json.loads(json.dumps(value, default=str))
 
 
 @router.get("/runs")
@@ -205,20 +275,30 @@ def get_checkpoints(run_id: str):
         raise HTTPException(500, f"Failed to get checkpoints: {exc}")
 
 
-@router.get("/runs/{run_id}/diagnosis")
-def get_diagnosis(run_id: str):
-    """Get or generate diagnosis for a run."""
+@router.api_route(
+    "/runs/{run_id}/diagnosis",
+    methods=["GET", "POST"],
+)
+def get_diagnosis(run_id: str, request: Request):
+    """Get the saved diagnosis or assign one once for a run."""
     try:
         storage = _require_storage()
         
-        # Check if diagnosis already exists
+        saved_snapshot = _read_saved_diagnosis(run_id)
+        if saved_snapshot:
+            return {
+                "diagnosis": saved_snapshot["diagnosis"],
+                "evidence": saved_snapshot.get("evidence", []),
+            }
+
+        # Check the database so diagnoses created before JSON snapshots are kept.
         existing_diagnosis = storage.get_diagnosis_for_run(run_id)
         if existing_diagnosis:
             evidence = storage.get_evidence_for_diagnosis(existing_diagnosis.diagnosis_id)
-            return {
-                "diagnosis": existing_diagnosis.dict(),
-                "evidence": [ev.dict() for ev in evidence],
-            }
+            diagnosis_dict = _json_safe(existing_diagnosis.dict())
+            evidence_dict = _json_safe([ev.dict() for ev in evidence])
+            _write_saved_diagnosis(run_id, diagnosis_dict, evidence_dict)
+            return {"diagnosis": diagnosis_dict, "evidence": evidence_dict}
         
         # Generate new diagnosis
         run = storage.get_run(run_id)
@@ -236,10 +316,13 @@ def get_diagnosis(run_id: str):
         # Generate evidence
         evidence_gen = EvidenceGenerator(storage=storage)
         evidence = evidence_gen.generate_evidence(diagnosis, run, events)
+        diagnosis_dict = _json_safe(diagnosis.dict())
+        evidence_dict = _json_safe([ev.dict() for ev in evidence])
+        _write_saved_diagnosis(run_id, diagnosis_dict, evidence_dict)
         
         return {
-            "diagnosis": diagnosis.dict(),
-            "evidence": [ev.dict() for ev in evidence],
+            "diagnosis": diagnosis_dict,
+            "evidence": evidence_dict,
         }
     except HTTPException:
         raise

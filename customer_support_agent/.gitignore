@@ -12,6 +12,7 @@ venv/
 *.db
 *.sqlite
 *.sqlite3
+diagnosis_runs/
 
 # node / react
 node_modules/

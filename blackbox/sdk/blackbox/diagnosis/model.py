@@ -2,6 +2,7 @@
 ML-based failure diagnosis model.
 """
 import uuid
+import random
 from datetime import datetime
 from typing import List, Dict, Any, Tuple, Optional
 import numpy as np
@@ -27,10 +28,12 @@ class DiagnosisModel:
     def __init__(
         self,
         model_name: str = "xgboost_v1",
-        model_version: str = "0.1.0"
+        model_version: str = "0.1.0",
+        simulated: bool = False,
     ):
         self.model_name = model_name
         self.model_version = model_version
+        self.simulated = simulated
         self.feature_extractor = FeatureExtractor()
         self.model = None  # Placeholder for trained model
         self.is_trained = False
@@ -95,6 +98,9 @@ class DiagnosisModel:
         Returns:
             Diagnosis result
         """
+        if self.simulated:
+            return self._simulated_diagnose(run, events, storage)
+
         if not self.is_trained and not self.model:
             # Use heuristic fallback if not trained
             return self._heuristic_diagnose(run, events, storage)
@@ -226,6 +232,64 @@ class DiagnosisModel:
             scores[idx] = min(score, 1.0)
         
         return scores
+
+    def _simulated_diagnose(
+        self,
+        run: Run,
+        events: List[ExecutionEvent],
+        storage: Optional[StorageBackend],
+    ) -> Diagnosis:
+        """Generate visibly dynamic demo results from this run's actual stages."""
+        if not events:
+            raise ValueError("Cannot diagnose a run with no events")
+
+        rng = random.SystemRandom()
+        event_ids = [event.event_id for event in events]
+
+        # A run can have no highlighted stage, or one to three highlighted stages.
+        suspected_count = rng.choices(
+            [0, 1, 2, 3],
+            weights=[0.20, 0.45, 0.25, 0.10],
+            k=1,
+        )[0]
+        suspected_ids = rng.sample(event_ids, min(suspected_count, len(event_ids)))
+        suspected_set = set(suspected_ids)
+
+        scores = []
+        for event in events:
+            if event.event_id in suspected_set:
+                score = rng.uniform(0.72, 0.99)
+            else:
+                score = rng.uniform(0.02, 0.68)
+            scores.append((event.event_id, score))
+
+        event_scores_sorted = sorted(scores, key=lambda item: item[1], reverse=True)
+        rankings = [
+            EventRanking(event_id=event_id, score=round(score, 4), rank=rank + 1)
+            for rank, (event_id, score) in enumerate(event_scores_sorted)
+        ]
+        top_score = rankings[0].score if suspected_ids else 0.0
+        status = (
+            DiagnosisStatus.CULPRIT
+            if suspected_ids
+            else DiagnosisStatus.BENIGN
+        )
+        diagnosis = Diagnosis(
+            diagnosis_id=f"diag_{uuid.uuid4().hex[:12]}",
+            run_id=run.run_id,
+            status=status,
+            suspected_event_id=suspected_ids[0] if suspected_ids else None,
+            suspected_event_ids=suspected_ids,
+            confidence=top_score,
+            rankings=rankings,
+            model_name="simulated_demo",
+            model_version="1.0.0",
+            created_at=datetime.utcnow(),
+        )
+
+        if storage:
+            storage.store_diagnosis(diagnosis)
+        return diagnosis
     
     def predict_proba(self, features: np.ndarray) -> np.ndarray:
         """

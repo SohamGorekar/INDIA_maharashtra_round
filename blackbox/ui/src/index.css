@@ -1249,6 +1249,16 @@ pre {
   text-transform: uppercase;
 }
 
+.simulated-badge {
+  color: var(--amber);
+  border: 1px solid var(--amber);
+  padding: 3px 6px;
+  margin-left: 8px;
+  font-size: 9px;
+  letter-spacing: .08em;
+  vertical-align: middle;
+}
+
 .diagnosis-heading p {
   margin: 0;
   color: var(--muted);

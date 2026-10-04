@@ -108,6 +108,7 @@ class SQLiteStorage(StorageBackend):
                 run_id TEXT NOT NULL,
                 status TEXT NOT NULL,
                 suspected_event_id TEXT,
+                suspected_event_ids TEXT NOT NULL DEFAULT '[]',
                 confidence REAL NOT NULL,
                 rankings TEXT NOT NULL,
                 model_name TEXT NOT NULL,
@@ -117,6 +118,15 @@ class SQLiteStorage(StorageBackend):
                 FOREIGN KEY (suspected_event_id) REFERENCES events(event_id)
             )
         """)
+        # Keep databases created before multi-stage simulated diagnosis usable.
+        diagnosis_columns = {
+            row["name"]
+            for row in cursor.execute("PRAGMA table_info(diagnoses)").fetchall()
+        }
+        if "suspected_event_ids" not in diagnosis_columns:
+            cursor.execute(
+                "ALTER TABLE diagnoses ADD COLUMN suspected_event_ids TEXT NOT NULL DEFAULT '[]'"
+            )
         
         # Evidence table
         cursor.execute("""
@@ -360,14 +370,15 @@ class SQLiteStorage(StorageBackend):
         cursor = self.conn.cursor()
         cursor.execute("""
             INSERT OR REPLACE INTO diagnoses 
-            (diagnosis_id, run_id, status, suspected_event_id, confidence,
-             rankings, model_name, model_version, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (diagnosis_id, run_id, status, suspected_event_id, suspected_event_ids,
+             confidence, rankings, model_name, model_version, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             diagnosis.diagnosis_id,
             diagnosis.run_id,
             diagnosis.status,
             diagnosis.suspected_event_id,
+            json.dumps(diagnosis.suspected_event_ids),
             diagnosis.confidence,
             json.dumps([r.dict() for r in diagnosis.rankings]),
             diagnosis.model_name,
@@ -568,12 +579,20 @@ class SQLiteStorage(StorageBackend):
         """Convert database row to Diagnosis model."""
         rankings_data = json.loads(row['rankings'])
         rankings = [EventRanking(**r) for r in rankings_data]
+        suspected_event_ids = (
+            json.loads(row['suspected_event_ids'])
+            if 'suspected_event_ids' in row.keys() and row['suspected_event_ids']
+            else []
+        )
+        if not suspected_event_ids and row['suspected_event_id']:
+            suspected_event_ids = [row['suspected_event_id']]
         
         return Diagnosis(
             diagnosis_id=row['diagnosis_id'],
             run_id=row['run_id'],
             status=row['status'],
             suspected_event_id=row['suspected_event_id'],
+            suspected_event_ids=suspected_event_ids,
             confidence=row['confidence'],
             rankings=rankings,
             model_name=row['model_name'],
