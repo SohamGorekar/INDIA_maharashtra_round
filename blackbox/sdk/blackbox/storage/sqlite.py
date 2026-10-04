@@ -482,7 +482,35 @@ class SQLiteStorage(StorageBackend):
         self.conn.close()
     
     # Helper methods to convert database rows to Pydantic models
-    
+
+    @staticmethod
+    def _parse_datetime(value, field_name: str) -> datetime:
+        """Parse timestamps from current and legacy SQLite representations."""
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            numeric_value = value.strip()
+            try:
+                if numeric_value and all(
+                    character in "0123456789.-" for character in numeric_value
+                ):
+                    return datetime.fromtimestamp(float(numeric_value))
+            except (OverflowError, ValueError) as exc:
+                raise ValueError(
+                    f"Invalid {field_name} timestamp: {value!r}"
+                ) from exc
+            try:
+                return datetime.fromisoformat(value)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Invalid {field_name} timestamp: {value!r}"
+                ) from exc
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(value)
+        raise TypeError(
+            f"Invalid {field_name} timestamp type: {type(value).__name__}"
+        )
+
     def _row_to_run(self, row) -> Run:
         """Convert database row to Run model."""
         return Run(
@@ -491,8 +519,8 @@ class SQLiteStorage(StorageBackend):
             task_input=json.loads(row['task_input']) if row['task_input'] else None,
             status=row['status'],
             outcome=row['outcome'],
-            started_at=datetime.fromisoformat(row['started_at']),
-            finished_at=datetime.fromisoformat(row['finished_at']) if row['finished_at'] else None,
+            started_at=self._parse_datetime(row['started_at'], "run.started_at"),
+            finished_at=self._parse_datetime(row['finished_at'], "run.finished_at") if row['finished_at'] else None,
             duration_ms=row['duration_ms'],
             root_event_id=row['root_event_id'],
             event_count=row['event_count'],
@@ -516,8 +544,8 @@ class SQLiteStorage(StorageBackend):
             state_after=json.loads(row['state_after']) if row['state_after'] else None,
             status=row['status'],
             error=row['error'],
-            started_at=datetime.fromisoformat(row['started_at']),
-            finished_at=datetime.fromisoformat(row['finished_at']) if row['finished_at'] else None,
+            started_at=self._parse_datetime(row['started_at'], "event.started_at"),
+            finished_at=self._parse_datetime(row['finished_at'], "event.finished_at") if row['finished_at'] else None,
             duration_ms=row['duration_ms'],
             checkpoint_id=row['checkpoint_id'],
             metadata=json.loads(row['metadata']) if row['metadata'] else {},
@@ -532,7 +560,7 @@ class SQLiteStorage(StorageBackend):
             sequence_number=row['sequence_number'],
             state=json.loads(row['state']),
             state_hash=row['state_hash'],
-            created_at=datetime.fromisoformat(row['created_at']),
+            created_at=self._parse_datetime(row['created_at'], "checkpoint.created_at"),
             storage_reference=row['storage_reference'],
         )
     
@@ -550,7 +578,7 @@ class SQLiteStorage(StorageBackend):
             rankings=rankings,
             model_name=row['model_name'],
             model_version=row['model_version'],
-            created_at=datetime.fromisoformat(row['created_at']),
+            created_at=self._parse_datetime(row['created_at'], "diagnosis.created_at"),
         )
     
     def _row_to_evidence(self, row) -> Evidence:
@@ -576,7 +604,7 @@ class SQLiteStorage(StorageBackend):
             steps_reused=row['steps_reused'],
             steps_reexecuted=row['steps_reexecuted'],
             outcome=row['outcome'],
-            created_at=datetime.fromisoformat(row['created_at']),
+            created_at=self._parse_datetime(row['created_at'], "replay.created_at"),
         )
     
     def _row_to_counterfactual_run(self, row) -> CounterfactualRun:
@@ -588,5 +616,5 @@ class SQLiteStorage(StorageBackend):
             patch=json.loads(row['patch']),
             outcome=row['outcome'],
             validation=json.loads(row['validation']),
-            created_at=datetime.fromisoformat(row['created_at']),
+            created_at=self._parse_datetime(row['created_at'], "counterfactual.created_at"),
         )

@@ -26,6 +26,7 @@ from blackbox.events.schema import (
 )
 from blackbox.storage.interface import StorageBackend
 from support.blackbox_integration.adapter import LangGraphAdapter
+from support.agent.graph import _call_tools
 from support.blackbox_integration.instrumented_graph import (
     get_instrumented_graph,
     get_checkpoint_manager,
@@ -99,7 +100,7 @@ class ReplayEngine:
         agent_state["decision"] = ""
         agent_state["reply"] = ""
         agent_state["steps"] = checkpoint_seq
-        
+
         # Run from restored state with safe mode
         replay_run_id = f"replay_{uuid.uuid4().hex[:12]}"
         from support.agent import tools
@@ -108,6 +109,19 @@ class ReplayEngine:
             tools.set_dry_run(True)
 
         try:
+            # Older checkpoints captured the state before the tool results were
+            # appended, leaving an assistant tool-call as the last message.
+            # Complete that pending tool turn before resuming the graph.
+            last_message = agent_state.get("messages", [])[-1]
+            if getattr(last_message, "tool_calls", None):
+                existing_messages = list(agent_state.get("messages", []))
+                tool_state = _call_tools(agent_state)
+                agent_state.update(tool_state)
+                agent_state["messages"] = (
+                    existing_messages
+                    + tool_state.get("messages", [])
+                )
+
             # Run the agent from the restored state
             final_state, _ = run_with_blackbox(
                 agent_state,

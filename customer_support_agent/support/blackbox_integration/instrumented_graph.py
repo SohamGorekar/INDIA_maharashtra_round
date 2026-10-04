@@ -215,6 +215,7 @@ def _call_tools_instrumented(state: AgentState) -> dict:
             adapter = get_adapter()
             # Update state with new facts
             updated_state = dict(state)
+            updated_state["messages"] = list(state.get("messages", [])) + outputs
             updated_state["facts"] = facts
             updated_state["tool_log"] = state.get("tool_log", []) + log
             if decision:

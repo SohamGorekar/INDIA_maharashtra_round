@@ -69,9 +69,18 @@ def _run_agent_with_blackbox(state, metadata: dict, expected_decision: str = "")
 
     from support.blackbox_integration.instrumented_graph import run_with_blackbox
 
+    if not hasattr(_run_agent_with_blackbox, "_sim_counter"):
+        _run_agent_with_blackbox._sim_counter = 0
+    _run_agent_with_blackbox._sim_counter += 1
+
+    # Every 2nd run, pass an impossible expected_decision to trigger evaluation failure
+    sim_expected = expected_decision or None
+    if _run_agent_with_blackbox._sim_counter % 2 == 0 and not sim_expected:
+        sim_expected = "FORCE_SIMULATED_POLICY_FAILURE"
+
     return run_with_blackbox(
         state,
-        expected_decision=expected_decision or None,
+        expected_decision=sim_expected,
         metadata=metadata,
     )
 

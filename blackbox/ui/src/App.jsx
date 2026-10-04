@@ -17,6 +17,34 @@ const getRunLabel = (run) => {
 
 const pretty = (value) => value == null ? '-' : typeof value === 'string' ? value : JSON.stringify(value, null, 2)
 
+const mergeRunEvents = (current, nextTrace, runId) => {
+  const currentEvents = current?.events || []
+  const fetchedEvents = nextTrace?.events || []
+  const eventsById = new Map()
+
+  ;[...currentEvents, ...fetchedEvents].forEach((item) => {
+    if (item?.run_id !== runId || !item.event_id) return
+    const existing = eventsById.get(item.event_id)
+    const existingIsRunning = existing?.status === 'running'
+    const itemIsRunning = item.status === 'running'
+    if (!existing || (existingIsRunning && !itemIsRunning) || (!existingIsRunning && !itemIsRunning)) {
+      eventsById.set(item.event_id, item)
+    }
+  })
+
+  return { ...nextTrace, events: [...eventsById.values()] }
+}
+
+const mergeLiveEvent = (current, event, runId) => {
+  if (!event?.event_id || event.run_id !== runId) return current
+  const currentTrace = current || { run: null, events: [] }
+  const events = [
+    ...(currentTrace.events || []).filter((item) => item.event_id !== event.event_id),
+    event,
+  ]
+  return { ...currentTrace, events }
+}
+
 export default function App() {
   const [page, setPage] = useState('overview')
   const [runs, setRuns] = useState([])
@@ -57,29 +85,55 @@ export default function App() {
 
   useEffect(() => {
     if (!runId) return undefined
-    setTrace(null); setDiagnosis(null); setEvent(null); setEventId(''); setResult(null)
+    let cancelled = false
+    setTrace(null); setCheckpoints([]); setDiagnosis(null); setEvent(null); setEventId(''); setResult(null)
     Promise.all([api.getTrace(runId), api.getCheckpoints(runId)])
       .then(([nextTrace, nextCheckpoints]) => {
-        setTrace(nextTrace)
-        setCheckpoints(nextCheckpoints)
+        if (cancelled) return
+        setTrace((current) => mergeRunEvents(current, nextTrace, runId))
+        setCheckpoints(uniqueCheckpoints(nextCheckpoints, runId))
       })
       .catch((e) => setError(e.message))
+
+    const syncSnapshot = () => {
+      Promise.all([api.getTrace(runId), api.getCheckpoints(runId)])
+        .then(([nextTrace, nextCheckpoints]) => {
+          if (cancelled) return
+          setTrace((current) => mergeRunEvents(current, nextTrace, runId))
+          setCheckpoints((current) => uniqueCheckpoints([...current, ...nextCheckpoints], runId))
+        })
+        .catch(() => {})
+    }
+    const snapshotTimer = window.setInterval(syncSnapshot, 1000)
 
     const close = api.streamRun(runId, {
       onOpen: () => { setStatus('Live'); setError('') },
       onError: (e) => { setStatus('Reconnecting'); setError(e.message) },
       onEvent: (message) => {
-        if (message.event) setTrace((current) => current ? {
-          ...current, events: [...(current.events || []).filter((item) => item.event_id !== message.event.event_id), message.event],
-        } : current)
-        if (message.checkpoint) setCheckpoints((current) => [...current, message.checkpoint])
+        if (message.run_id && message.run_id !== runId) return
+        if (message.event) setTrace((current) => mergeLiveEvent(current, message.event, runId))
+        if (message.checkpoint) {
+          setCheckpoints((current) => uniqueCheckpoints([...current, message.checkpoint], runId))
+        }
+        if (message.type === 'run_started') {
+          setRuns((current) => current.map((run) => (
+            run.run_id === runId ? { ...run, ...message.run, status: 'running' } : run
+          )))
+        }
         if (message.type === 'run_completed' || message.type === 'run_failed') {
           setStatus(message.type === 'run_completed' ? 'Complete' : 'Failed')
+          setRuns((current) => current.map((run) => (
+            run.run_id === runId ? { ...run, ...message.run } : run
+          )))
           refresh(false).catch(() => {})
         }
       },
     })
-    return close
+    return () => {
+      cancelled = true
+      window.clearInterval(snapshotTimer)
+      close()
+    }
   }, [runId])
 
   useEffect(() => {
@@ -94,17 +148,19 @@ export default function App() {
   const pages = [
     ['overview', 'Analytics & Overview', 'Visual metrics of agent workflow & metadata'],
     ['runs', 'Order Runs & Workflow Graph', 'Inspect active & historical order graphs'],
-    ['timeline', 'Timeline Trace', 'Step-by-step raw event logs'],
     ['diagnosis', 'Failure Diagnosis', 'Automated anomaly detection'],
     ['replay', 'State Replay', 'Time-travel execution from saved points'],
-    ['alternative', 'Counterfactual Testing', 'Test alternative branch outcomes'],
     ['compare', 'Compare Runs', 'Diff workflow executions'],
   ]
 
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="logo">Black Box <small>AI Workflow Analytics & Monitor</small></div>
+        <div className="logo">
+          <span className="logo-mark" aria-hidden="true">✈</span>
+          <span>BLACK BOX</span>
+          <small>AI FLIGHT RECORDER</small>
+        </div>
         <div className="connection"><span className={`dot ${status.toLowerCase()}`} /> {status}</div>
 
         <label className="side-label">Navigation</label>
@@ -115,43 +171,112 @@ export default function App() {
           </button>
         ))}
 
-        <label className="side-label">Select Active Session</label>
-        <select value={runId} onChange={(e) => setRunId(e.target.value)}>
-          <option value="">Select an order run</option>
-          {runs.map((run) => (
-            <option key={run.run_id} value={run.run_id}>
-              {getRunLabel(run)} ({run.status})
-            </option>
-          ))}
-        </select>
         <button className="refresh" onClick={() => refresh(false)}>Refresh Runs</button>
       </aside>
 
       <main className="content">
         <header>
           <div>
-            <p className="eyebrow">BLACK BOX AGENT MONITORING SYSTEM</p>
+            <p className="eyebrow">BLACK BOX / FLIGHT DATA RECORDER</p>
             <h1>{pages.find(([id]) => id === page)?.[1]}</h1>
             <p className="subtitle">{pages.find(([id]) => id === page)?.[2]}</p>
           </div>
-          {selectedRun && (
-            <div className="run-badge">
-              <span>Selected Order Run</span>
-              <b>{getRunLabel(selectedRun)}</b>
-              <small>ID: {selectedRun.run_id} · {selectedRun.status}</small>
+          <div className="header-controls">
+            <div className="run-selector-box">
+              <label>Active Order Session:</label>
+              <select value={runId} onChange={(e) => setRunId(e.target.value)}>
+                <option value="">Select an order run</option>
+                {runs.map((run) => (
+                  <option key={run.run_id} value={run.run_id}>
+                    {getRunLabel(run)} ({run.status})
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
+            {selectedRun && (
+              <div className="run-badge">
+                <span>Selected Order</span>
+                <b>{getRunLabel(selectedRun)}</b>
+                <small>ID: {selectedRun.run_id} · {selectedRun.status}</small>
+              </div>
+            )}
+          </div>
         </header>
 
         {error && <div className="error">{error}</div>}
 
         {page === 'overview' && <OverviewPage runs={runs} selectedRun={selectedRun} events={events} checkpoints={checkpoints} />}
         {page === 'runs' && <RunsPage runs={runs} runId={runId} setRunId={setRunId} selectedRun={selectedRun} events={events} event={event} setEventId={setEventId} isLive={status === 'Live'} />}
-        {page === 'timeline' && <section className="card"><h2>What did the agent do?</h2><Activity events={events} onSelect={setEventId} /><Details event={event} /></section>}
-        {page === 'diagnosis' && <section className="card"><h2>Why did it fail?</h2><button className="primary" onClick={() => doAction(() => api.diagnose(runId).then(setDiagnosis))}>Analyze this request</button>{diagnosis && <pre>{pretty(diagnosis)}</pre>}</section>}
-        {page === 'replay' && <ActionPage title="Replay a saved point" text="Replay safely from a checkpoint to see what happened after that moment." controls={<><select id="checkpoint">{checkpoints.map((c) => <option key={c.checkpoint_id} value={c.checkpoint_id}>Step {c.sequence_number}: {c.checkpoint_id}</option>)}</select><label className="check"><input type="checkbox" checked={safeMode} onChange={(e) => setSafeMode(e.target.checked)} /> Safe mode (recommended)</label><button className="primary" onClick={() => doAction(() => api.replay(runId, document.getElementById('checkpoint').value, safeMode))}>Start replay</button></>} result={result} />}
-        {page === 'alternative' && <ActionPage title="Try a different result" text="Choose a step and provide a replacement output. The original run is never changed." controls={<><select value={eventId} onChange={(e) => setEventId(e.target.value)}><option value="">Choose a step</option>{events.map((e) => <option key={e.event_id} value={e.event_id}>{e.sequence_number}: {e.component_name}</option>)}</select><textarea value={patch} onChange={(e) => setPatch(e.target.value)} /><button className="primary" disabled={!eventId} onClick={() => { try { doAction(() => api.counterfactual(runId, eventId, JSON.parse(patch), safeMode)) } catch (error) { doAction(() => Promise.reject(error)) } }}>Run alternative safely</button></>} result={result} />}
-        {page === 'compare' && <section className="card"><h2>Compare two requests</h2><select value={otherRun} onChange={(e) => setOtherRun(e.target.value)}><option value="">Choose another run</option>{runs.filter((run) => run.run_id !== runId).map((run) => <option key={run.run_id} value={run.run_id}>{getRunLabel(run)}</option>)}</select><button className="primary" disabled={!otherRun} onClick={() => doAction(() => api.compare(runId, otherRun))}>Compare them</button>{result && <pre>{pretty(result)}</pre>}</section>}
+        {page === 'diagnosis' && (
+          <section className="card">
+            <h2>Failure Diagnosis</h2>
+            <p className="hint">Automated anomaly detection for the active order session.</p>
+            <div className="section-run-select">
+              <label>Target Order Session:</label>
+              <select value={runId} onChange={(e) => setRunId(e.target.value)}>
+                <option value="">Select an order run</option>
+                {runs.map((run) => (
+                  <option key={run.run_id} value={run.run_id}>
+                    {getRunLabel(run)} ({run.status})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button className="primary" style={{ marginTop: '16px' }} disabled={!runId} onClick={() => doAction(() => api.diagnose(runId).then(setDiagnosis))}>
+              Analyze this request
+            </button>
+            {diagnosis && <DiagnosisResults diagnosis={diagnosis} events={events} />}
+          </section>
+        )}
+        {page === 'replay' && (
+          <ActionPage 
+            title="Replay a saved point" 
+            text="Replay safely from a checkpoint to see what happened after that moment." 
+            runs={runs}
+            runId={runId}
+            setRunId={setRunId}
+            controls={
+              <>
+                <select id="checkpoint">
+                  {checkpoints.map((c) => <option key={c.checkpoint_id} value={c.checkpoint_id}>Step {c.sequence_number}: {c.checkpoint_id}</option>)}
+                </select>
+                <label className="check"><input type="checkbox" checked={safeMode} onChange={(e) => setSafeMode(e.target.checked)} /> Safe mode (recommended)</label>
+                <button className="primary" disabled={!runId} onClick={() => doAction(() => api.replay(runId, document.getElementById('checkpoint').value, safeMode))}>Start replay</button>
+              </>
+            } 
+            result={result}
+            resultView={result ? <ReplayResults result={result} checkpoints={checkpoints} /> : null}
+          />
+        )}
+        
+        {page === 'compare' && (
+          <section className="card">
+            <h2>Compare two requests</h2>
+            <p className="hint">Compare baseline order session against another run.</p>
+            <div className="section-run-select">
+              <label>Primary Order Session:</label>
+              <select value={runId} onChange={(e) => setRunId(e.target.value)}>
+                <option value="">Select primary order run</option>
+                {runs.map((run) => (
+                  <option key={run.run_id} value={run.run_id}>
+                    {getRunLabel(run)} ({run.status})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="section-run-select" style={{ marginTop: '12px' }}>
+              <label>Comparison Order Session:</label>
+              <select value={otherRun} onChange={(e) => setOtherRun(e.target.value)}>
+                <option value="">Choose another run</option>
+                {runs.filter((run) => run.run_id !== runId).map((run) => (
+                  <option key={run.run_id} value={run.run_id}>{getRunLabel(run)}</option>
+                ))}
+              </select>
+            </div>
+            <button className="primary" style={{ marginTop: '16px' }} disabled={!runId || !otherRun} onClick={() => doAction(() => api.compare(runId, otherRun))}>Compare Executions</button>
+            {result && <CompareResults result={result} runs={runs} runId={runId} otherRun={otherRun} getRunLabel={getRunLabel} />}
+          </section>
+        )}
       </main>
     </div>
   )
@@ -480,6 +605,96 @@ function Status({ value }) {
   return <span className={`status ${value || 'unknown'}`}>{value || 'unknown'}</span>
 }
 
+function uniqueCheckpoints(items, runId) {
+  const seen = new Set()
+  return items.filter((checkpoint) => {
+    if (!checkpoint || (checkpoint.run_id && checkpoint.run_id !== runId)) return false
+    const key = checkpoint.checkpoint_id || `${checkpoint.event_id}-${checkpoint.sequence_number}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function DiagnosisResults({ diagnosis, events }) {
+  const result = diagnosis.diagnosis || diagnosis
+  const rankings = result.rankings || result.ranking || []
+  const eventMap = new Map(events.map((item) => [item.event_id, item]))
+  const suspectedEventId = result.suspected_event_id
+  const confidence = Number(result.confidence || 0)
+
+  return (
+    <div className="diagnosis-results">
+      <div className="diagnosis-summary">
+        <div className="diagnosis-summary-item">
+          <span>Assessment</span>
+          <b className={`diagnosis-status ${String(result.status || '').toLowerCase()}`}>
+            {result.status || 'UNKNOWN'}
+          </b>
+        </div>
+        <div className="diagnosis-summary-item">
+          <span>Failure confidence</span>
+          <b>{formatScore(confidence)}</b>
+        </div>
+        <div className="diagnosis-summary-item">
+          <span>Stages assessed</span>
+          <b>{rankings.length}</b>
+        </div>
+      </div>
+
+      <div className="diagnosis-heading">
+        <div>
+          <h3>Stage suspicion scores</h3>
+          <p>Each stage is ranked by how strongly it contributed to the failure assessment.</p>
+        </div>
+        <span className="diagnosis-scale">0% LOW · 100% HIGH</span>
+      </div>
+
+      {!rankings.length ? (
+        <div className="empty small">No stage scores were returned for this run.</div>
+      ) : (
+        <div className="diagnosis-list">
+          {rankings.map((item) => {
+            const event = eventMap.get(item.event_id)
+            const score = Number(item.score || 0)
+            const isSuspected = item.event_id === suspectedEventId
+            const stageName = event?.component_name || `Stage ${item.rank || ''}`.trim()
+            const stageType = event?.component_type || 'workflow'
+
+            return (
+              <div key={item.event_id} className={`diagnosis-stage ${isSuspected ? 'suspected' : ''}`}>
+                <div className="diagnosis-stage-rank">#{item.rank || '-'}</div>
+                <div className="diagnosis-stage-main">
+                  <div className="diagnosis-stage-title">
+                    <div>
+                      <b>{stageName}</b>
+                      <small>
+                        {event ? `Step ${event.sequence_number} · ${stageType.toUpperCase()}` : item.event_id}
+                      </small>
+                    </div>
+                    {isSuspected && <span className="suspected-label">SUSPECTED FAILURE</span>}
+                  </div>
+                  <div className="diagnosis-bar">
+                    <span style={{ width: `${Math.min(Math.max(score * 100, 0), 100)}%` }} />
+                  </div>
+                </div>
+                <div className="diagnosis-score">
+                  <b>{formatScore(score)}</b>
+                  <small>score</small>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function formatScore(score) {
+  return `${(Math.min(Math.max(score, 0), 1) * 100).toFixed(1)}%`
+}
+
 function Activity({ events, onSelect }) {
   if (!events.length) return <div className="empty small">No steps recorded yet.</div>
   return (
@@ -510,13 +725,213 @@ function Details({ event }) {
   )
 }
 
-function ActionPage({ title, text, controls, result }) {
+function ActionPage({ title, text, controls, result, resultView, runs, runId, setRunId }) {
   return (
     <section className="card action">
       <h2>{title}</h2>
       <p>{text}</p>
+      {runs && (
+        <div className="section-run-select" style={{ marginBottom: '16px' }}>
+          <label>Target Order Session:</label>
+          <select value={runId} onChange={(e) => setRunId(e.target.value)}>
+            <option value="">Select an order run</option>
+            {runs.map((run) => (
+              <option key={run.run_id} value={run.run_id}>
+                {getRunLabel(run)} ({run.status})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {controls}
-      {result && <pre>{pretty(result)}</pre>}
+      {resultView || (result && <pre>{pretty(result)}</pre>)}
     </section>
+  )
+}
+
+function ReplayResults({ result, checkpoints }) {
+  const reused = Number(result.steps_reused || 0)
+  const reexecuted = Number(result.steps_reexecuted || 0)
+  const total = reused + reexecuted
+  const checkpoint = checkpoints.find((item) => item.checkpoint_id === result.checkpoint_id)
+  const outcome = String(result.outcome || 'unknown')
+  const outcomeClass = outcome.toLowerCase()
+
+  return (
+    <div className="replay-results">
+      <div className="replay-report-header">
+        <div>
+          <p className="eyebrow">REPLAY REPORT</p>
+          <h3>Execution reconstructed successfully</h3>
+          <p>
+            The run was resumed from the selected saved point. Earlier steps were reused,
+            and the remaining steps were scheduled for re-execution.
+          </p>
+        </div>
+        <span className={`replay-outcome ${outcomeClass}`}>{outcome}</span>
+      </div>
+
+      <div className="replay-metrics">
+        <div>
+          <span>Starting checkpoint</span>
+          <b>Step {checkpoint?.sequence_number ?? '-'}</b>
+          <small>{result.checkpoint_id || 'Not available'}</small>
+        </div>
+        <div>
+          <span>Steps reused</span>
+          <b className="reused-value">{reused}</b>
+          <small>Restored from saved state</small>
+        </div>
+        <div>
+          <span>Steps re-executed</span>
+          <b className="reexecuted-value">{reexecuted}</b>
+          <small>Run again after checkpoint</small>
+        </div>
+        <div>
+          <span>Replay ID</span>
+          <b className="replay-id">{result.replay_run_id || '-'}</b>
+          <small>New replay record</small>
+        </div>
+      </div>
+
+      <div className="replay-progress-section">
+        <div className="replay-progress-heading">
+          <b>Execution path</b>
+          <span>{total ? `${total} total steps` : 'No step count returned'}</span>
+        </div>
+        <div className="replay-progress">
+          <span className="replay-reused" style={{ width: `${total ? (reused / total) * 100 : 0}%` }} />
+          <span className="replay-reexecuted" style={{ width: `${total ? (reexecuted / total) * 100 : 0}%` }} />
+        </div>
+        <div className="replay-legend">
+          <span><i className="reused-dot" /> Reused from checkpoint</span>
+          <span><i className="reexecuted-dot" /> Re-executed after checkpoint</span>
+        </div>
+      </div>
+
+      <div className="replay-timeline">
+        <div className="replay-phase reused-phase">
+          <span className="replay-phase-marker">01</span>
+          <div>
+            <b>Saved state restored</b>
+            <p>{reused} step{reused === 1 ? '' : 's'} reused before the selected checkpoint.</p>
+          </div>
+        </div>
+        <div className="replay-phase reexecuted-phase">
+          <span className="replay-phase-marker">02</span>
+          <div>
+            <b>Execution continued</b>
+            <p>{reexecuted} step{reexecuted === 1 ? '' : 's'} marked for re-execution after the checkpoint.</p>
+          </div>
+        </div>
+        <div className="replay-phase outcome-phase">
+          <span className="replay-phase-marker">03</span>
+          <div>
+            <b>Replay outcome: {outcome}</b>
+            <p>This is the outcome recorded for the replayed execution.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CompareResults({ result, runs, runId, otherRun, getRunLabel }) {
+  const run1Obj = runs.find(r => r.run_id === runId) || { run_id: runId }
+  const run2Obj = runs.find(r => r.run_id === otherRun) || { run_id: otherRun }
+
+  const run1Label = getRunLabel(run1Obj)
+  const run2Label = getRunLabel(run2Obj)
+
+  const changed = result.changed_events || []
+  const added = result.added_events || []
+  const removed = result.removed_events || []
+
+  return (
+    <div className="compare-results-container" style={{ marginTop: '24px' }}>
+      {/* High level Summary Cards */}
+      <div className="analytics-grid" style={{ marginBottom: '20px' }}>
+        <div className="metric-card">
+          <span className="metric-label">Execution Divergence</span>
+          <b className="metric-value">{result.first_divergence_event_id ? 'Diverged' : 'Identical'}</b>
+          <span className="metric-sub">First split step ID: {result.first_divergence_event_id || 'None'}</span>
+        </div>
+
+        <div className="metric-card active">
+          <span className="metric-label">Run 1 Steps</span>
+          <b className="metric-value">{result.run_1?.event_count || 0} steps</b>
+          <span className="metric-sub">{run1Label} ({result.outcome?.original || 'SUCCESS'})</span>
+        </div>
+
+        <div className="metric-card warning">
+          <span className="metric-label">Run 2 Steps</span>
+          <b className="metric-value">{result.run_2?.event_count || 0} steps</b>
+          <span className="metric-sub">{run2Label} ({result.outcome?.alternative || 'SUCCESS'})</span>
+        </div>
+
+        <div className="metric-card success">
+          <span className="metric-label">Changed Execution Steps</span>
+          <b className="metric-value">{changed.length}</b>
+          <span className="metric-sub">Steps with output/state variations</span>
+        </div>
+      </div>
+
+      {/* Visual Differences Table */}
+      <div className="card" style={{ background: '#121824', border: '1px solid #1e2838' }}>
+        <h3>Step-by-Step Execution Differences</h3>
+        <p className="chart-desc">Side-by-side breakdown of execution steps between both runs</p>
+
+        {changed.length === 0 ? (
+          <div className="empty small">Both execution runs followed identical steps and parameters.</div>
+        ) : (
+          <div className="compare-table-wrapper" style={{ overflowX: 'auto', marginTop: '16px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #28364b', color: '#8d9bb0' }}>
+                  <th style={{ padding: '10px' }}>Seq #</th>
+                  <th style={{ padding: '10px' }}>Component / Action</th>
+                  <th style={{ padding: '10px' }}>{run1Label} (Event ID)</th>
+                  <th style={{ padding: '10px' }}>{run2Label} (Event ID)</th>
+                  <th style={{ padding: '10px' }}>Difference Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                {changed.map((item, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #1e2838', background: idx % 2 === 0 ? '#161e2e' : 'transparent' }}>
+                    <td style={{ padding: '12px 10px', fontWeight: 'bold', color: '#5890ff' }}>Step {item.sequence_number}</td>
+                    <td style={{ padding: '12px 10px' }}>
+                      <b style={{ color: '#ffffff', display: 'block' }}>{item.component_name}</b>
+                    </td>
+                    <td style={{ padding: '12px 10px', fontFamily: 'monospace', color: '#94a3b8' }}>{item.event_id_1}</td>
+                    <td style={{ padding: '12px 10px', fontFamily: 'monospace', color: '#94a3b8' }}>{item.event_id_2}</td>
+                    <td style={{ padding: '12px 10px' }}>
+                      {item.output_changed && <span style={{ background: '#f59e0b22', color: '#fbbf24', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>Output Changed</span>}
+                      {item.status_changed && <span style={{ background: '#ef444422', color: '#f87171', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600', marginLeft: '6px' }}>Status Changed</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {(added.length > 0 || removed.length > 0) && (
+          <div style={{ marginTop: '20px', paddingT: '16px', borderTop: '1px dashed #28364b', display: 'flex', gap: '24px' }}>
+            {added.length > 0 && (
+              <div>
+                <b style={{ color: '#54d28b' }}>+ Added Steps in Run 2 ({added.length}):</b>
+                <div style={{ fontSize: '12px', color: '#8d9bb0', marginTop: '4px' }}>{added.join(', ')}</div>
+              </div>
+            )}
+            {removed.length > 0 && (
+              <div>
+                <b style={{ color: '#ff5c7c' }}>- Removed Steps in Run 2 ({removed.length}):</b>
+                <div style={{ fontSize: '12px', color: '#8d9bb0', marginTop: '4px' }}>{removed.join(', ')}</div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }

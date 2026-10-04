@@ -143,6 +143,15 @@ def test_customer_chat_creates_blackbox_run(monkeypatch, tmp_path):
         ComponentType.FUNCTION,
     }
     assert checkpoints
+    after_tools = [
+        checkpoint for checkpoint in checkpoints
+        if checkpoint.event_id.startswith("after_tools_")
+    ]
+    assert after_tools
+    assert all(
+        checkpoint.state["messages"][-1]["type"] == "tool"
+        for checkpoint in after_tools
+    )
 
     stream = client.get(f"/api/blackbox/runs/{body['blackbox_run_id']}/stream")
     assert stream.status_code == 200
@@ -157,3 +166,23 @@ def test_stream_subscribers_are_cleaned_up():
     assert broker.subscriber_count("run_cleanup") == 1
     broker.unsubscribe(q, "run_cleanup")
     assert broker.subscriber_count("run_cleanup") == 0
+
+
+def test_storage_reads_legacy_numeric_checkpoint_timestamp(tmp_path):
+    storage = SQLiteStorage(str(tmp_path / "legacy-checkpoint.db"))
+    storage.conn.execute(
+        """
+        INSERT INTO checkpoints
+        (checkpoint_id, run_id, event_id, sequence_number, state, state_hash,
+         created_at, storage_reference)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("cp_legacy", "run_legacy", "event_legacy", 1, "{}", "hash", 1_700_000_000, None),
+    )
+    storage.conn.commit()
+
+    checkpoint = storage.get_checkpoint("cp_legacy")
+
+    assert checkpoint is not None
+    assert checkpoint.created_at == datetime.fromtimestamp(1_700_000_000)
+    storage.close()
